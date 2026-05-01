@@ -1,0 +1,71 @@
+url: https://mdmanurung.github.io/RaJIVEutils/
+
+template:
+  bootstrap: 5
+
+home:
+  title: "rajiveutils: Robust Angle Based Joint and Individual Variation Explained"
+  description: >
+    A robust alternative to the aJIVE method for the estimation of joint and
+    individual components in the presence of outliers in multi-source data.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/mdmanurung/RaJIVEutils
+      aria-label: GitHub
+
+reference:
+  - title: "Core decomposition"
+    desc: "Run the RaJIVE decomposition and simulate data."
+    contents:
+      - Rajive
+      - ajive.data.sim
+
+  - title: "Rank accessors"
+    desc: "Extract rank estimates from a `rajive` object."
+    contents:
+      - get_joint_rank
+      - get_individual_rank
+      - get_all_ranks
+
+  - title: "Component accessors"
+    desc: "Extract scores, loadings, and reconstructed matrices."
+    contents:
+      - get_joint_scores
+      - get_block_scores
+      - get_block_loadings
+      - get_block_matrix
+
+  - title: "S3 methods for `rajive` objects"
+    desc: "print and summary methods."
+    contents:
+      - print.rajive
+      - summary.rajive
+
+  - title: "Variance explained"
+    desc: "Quantify and visualise explained variance."
+    contents:
+      - showVarExplained_robust
+      - plot_variance_explained
+
+  - title: "Visualisation"
+    desc: "Heatmaps and score plots."
+    contents:
+      - decomposition_heatmaps_robustH
+      - plot_scores
+
+  - title: "Jackstraw significance testing"
+    desc: >
+      Permutation-based test to identify variables with significantly
+      non-zero joint loadings.
+    contents:
+      - jackstraw_rajive
+      - print.jackstraw_rajive
+      - summary.jackstraw_rajive
+      - get_significant_vars
+      - plot_jackstraw

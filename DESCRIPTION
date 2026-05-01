@@ -1,4 +1,4 @@
-Package: RaJIVE
+Package: rajiveutils
 Title: Robust Angle Based Joint and Individual Variation Explained
 Version: 1.0
 Authors@R: c(
@@ -20,7 +20,8 @@ Suggests:
     testthat (>= 2.1.0),
     cowplot,
     reshape2,
-    dplyr
+    dplyr,
+    pkgdown
 Imports: ggplot2, 
 	doParallel,
         foreach,

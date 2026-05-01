@@ -1,5 +1,5 @@
 library(testthat)
-library(RaJIVE)
+library(rajiveutils)
 
 # ---------------------------------------------------------------------------
 # Helpers shared across tests
@@ -30,7 +30,7 @@ test_that("ols_f_stat_matrix matches lm() F-statistic", {
 
   Y_t <- rbind(y1, y2)               # 2 x n
 
-  f_mat <- RaJIVE:::ols_f_stat_matrix(Y_t, x)
+  f_mat <- rajiveutils:::ols_f_stat_matrix(Y_t, x)
 
   # Reference from lm()
   f_lm1 <- summary(lm(y1 ~ x))$fstatistic[1]
@@ -44,7 +44,7 @@ test_that("ols_f_stat_matrix returns NA for constant features", {
   n   <- 30
   x   <- rnorm(n)
   Y_t <- rbind(rep(5, n), rnorm(n))
-  f   <- RaJIVE:::ols_f_stat_matrix(Y_t, x)
+  f   <- rajiveutils:::ols_f_stat_matrix(Y_t, x)
   expect_true(is.na(f[1]))
   expect_false(is.na(f[2]))
 })
@@ -56,7 +56,7 @@ test_that("ols_f_stat_matrix returns NA for constant features", {
 test_that("compute_empirical_pvalues returns 1 for NA observed F-stat", {
   f_obs  <- c(NA_real_, 5.0)
   f_null <- matrix(c(1, 2, 3, 4, 1, 2, 3, 4), nrow = 2, ncol = 4)
-  p <- RaJIVE:::compute_empirical_pvalues(f_obs, f_null)
+  p <- rajiveutils:::compute_empirical_pvalues(f_obs, f_null)
   expect_equal(p[1], 1)
 })
 
@@ -65,7 +65,7 @@ test_that("compute_empirical_pvalues: p-value is proportion of nulls exceeding o
   # observed F >> null => p should be ~0
   f_obs  <- c(100)
   f_null <- matrix(runif(100, 0, 5), nrow = 1, ncol = 100)
-  p <- RaJIVE:::compute_empirical_pvalues(f_obs, f_null)
+  p <- rajiveutils:::compute_empirical_pvalues(f_obs, f_null)
   expect_lt(p[1], 0.05)
 })
 
@@ -73,7 +73,7 @@ test_that("compute_empirical_pvalues: p-value is ~1 when obs F << nulls", {
   set.seed(2)
   f_obs  <- c(0.001)
   f_null <- matrix(runif(100, 10, 20), nrow = 1, ncol = 100)
-  p <- RaJIVE:::compute_empirical_pvalues(f_obs, f_null)
+  p <- rajiveutils:::compute_empirical_pvalues(f_obs, f_null)
   expect_equal(p[1], 1)
 })
 

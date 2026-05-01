@@ -1,4 +1,4 @@
 library(testthat)
-library(RaJIVE)
+library(rajiveutils)
 
-test_check("RaJIVE")
+test_check("rajiveutils")
