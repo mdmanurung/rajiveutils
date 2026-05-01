@@ -71,6 +71,7 @@ Rajive <- function(blocks, initial_signal_ranks, full=TRUE,
   jive_decomposition[['joint_rank']] <- joint_rank
 
   jive_decomposition[['joint_rank_sel']] <- joint_rank_sel_results
+  class(jive_decomposition) <- "rajive"
   jive_decomposition
 }
 

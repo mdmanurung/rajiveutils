@@ -50,18 +50,39 @@ data.ajive <- list((Y$sim_data[[1]]), (Y$sim_data[[2]]), (Y$sim_data[[3]]))
 ajive.results.robust <- Rajive(data.ajive, initial_signal_ranks)
 ```
 
-The function returns a list containing the aJIVE decomposition, with the
-joint component (shared across data sources), individual component (data
-source specific) and residual component for each data source.
+The function returns a list of class `"rajive"` containing the RaJIVE
+decomposition, with the joint component (shared across data sources),
+individual component (data source specific) and residual component for
+each data source.
 
-### Visualizing results:
+### Inspecting the decomposition
+
+  - Print a concise overview:
+
+<!-- end list -->
+
+``` r
+print(ajive.results.robust)
+#> RaJIVE Decomposition
+#>   Number of blocks : 3
+#>   Joint rank       : 3
+#>   Individual ranks : 5, 3, 1
+```
+
+  - Summary table of all ranks:
+
+<!-- end list -->
+
+``` r
+summary(ajive.results.robust)
+get_all_ranks(ajive.results.robust)
+```
 
   - Joint rank:
 
 <!-- end list -->
 
 ``` r
-
 get_joint_rank(ajive.results.robust)
 #> [1] 3
 ```
@@ -79,6 +100,38 @@ get_individual_rank(ajive.results.robust, 3)
 #> [1] 1
 ```
 
+  - Shared joint scores (n × joint\_rank matrix):
+
+<!-- end list -->
+
+``` r
+get_joint_scores(ajive.results.robust)
+```
+
+  - Block-specific scores and loadings:
+
+<!-- end list -->
+
+``` r
+# Joint scores for block 1
+get_block_scores(ajive.results.robust, k = 1, type = "joint")
+
+# Individual loadings for block 2
+get_block_loadings(ajive.results.robust, k = 2, type = "individual")
+```
+
+  - Full reconstructed matrices (J, I, or E) for a block:
+
+<!-- end list -->
+
+``` r
+J1 <- get_block_matrix(ajive.results.robust, k = 1, type = "joint")
+I2 <- get_block_matrix(ajive.results.robust, k = 2, type = "individual")
+E3 <- get_block_matrix(ajive.results.robust, k = 3, type = "noise")
+```
+
+### Visualizing results
+
   - Heatmap decomposition:
 
 <!-- end list -->
@@ -89,7 +142,7 @@ decomposition_heatmaps_robustH(data.ajive, ajive.results.robust)
 
 <img src="man/figures/README-unnamed-chunk-3-1.png" width="100%" />
 
-  - Proportion of variance explained:
+  - Proportion of variance explained (as a list):
 
 <!-- end list -->
 
@@ -97,24 +150,34 @@ decomposition_heatmaps_robustH(data.ajive, ajive.results.robust)
 showVarExplained_robust(ajive.results.robust, data.ajive)
 #> $Joint
 #> [1] 0.3148569 0.3349692 0.4197429
-#> 
+#>
 #> $Indiv
 #> [1] 0.5499653 0.4156423 0.1522468
-#> 
+#>
 #> $Resid
 #> [1] 0.1351778 0.2493886 0.4280103
 ```
 
-  - Block scores and loadings:
+  - Proportion of variance explained (as a bar chart):
 
 <!-- end list -->
 
 ``` r
-# Joint scores for block 1
-get_block_scores(ajive.results.robust, k = 1, type = "joint")
+plot_variance_explained(ajive.results.robust, data.ajive)
+```
 
-# Individual loadings for block 2
-get_block_loadings(ajive.results.robust, k = 2, type = "individual")
+  - Scatter plot of scores (e.g. joint component 1 vs 2 for block 1):
+
+<!-- end list -->
+
+``` r
+plot_scores(ajive.results.robust, k = 1, type = "joint",
+            comp_x = 1, comp_y = 2)
+
+# Colour points by a grouping variable
+group_labels <- rep(c("A", "B"), each = n / 2)
+plot_scores(ajive.results.robust, k = 1, type = "joint",
+            comp_x = 1, comp_y = 2, group = group_labels)
 ```
 
 ### Jackstraw significance testing
@@ -158,4 +221,61 @@ plot_jackstraw(js, type = "scatter", block = 1, component = 1)
 # Heatmap of -log10(p-value) across all joint components for one block
 plot_jackstraw(js, type = "loadings_significance", block = 1)
 ```
+
+## Function reference
+
+### Core decomposition
+
+| Function | Description |
+| --- | --- |
+| `Rajive()` | Run the RaJIVE decomposition on a list of data matrices. Returns an object of class `"rajive"`. |
+| `ajive.data.sim()` | Simulate multi-block data with known joint and individual structure for testing and benchmarking. |
+
+### Rank accessors
+
+| Function | Description |
+| --- | --- |
+| `get_joint_rank()` | Extract the estimated joint rank from a `"rajive"` object. |
+| `get_individual_rank()` | Extract the individual rank for a specific data block. |
+| `get_all_ranks()` | Return a `data.frame` of joint and individual ranks for all blocks at once. |
+
+### Component accessors
+
+| Function | Description |
+| --- | --- |
+| `get_joint_scores()` | Return the shared n × joint\_rank joint score matrix. |
+| `get_block_scores()` | Return the score matrix (U) for a given block and component type (joint or individual). |
+| `get_block_loadings()` | Return the loading matrix (V) for a given block and component type. |
+| `get_block_matrix()` | Return the full reconstructed matrix (J, I, or E) for a given block and component type. |
+
+### S3 methods for `"rajive"` objects
+
+| Function | Description |
+| --- | --- |
+| `print.rajive()` | Print a concise summary of ranks for a `"rajive"` object. |
+| `summary.rajive()` | Return and print a `data.frame` of all estimated ranks. |
+
+### Variance explained
+
+| Function | Description |
+| --- | --- |
+| `showVarExplained_robust()` | Compute the proportion of variance explained by joint, individual, and residual components for each block (returns a list). |
+| `plot_variance_explained()` | Stacked bar chart of variance explained by each component and block. |
+
+### Visualisation
+
+| Function | Description |
+| --- | --- |
+| `decomposition_heatmaps_robustH()` | Heatmaps of the raw data and the joint, individual, and noise components for all blocks. |
+| `plot_scores()` | Scatter plot of two score components for a given block (joint or individual), with optional group colouring. |
+
+### Jackstraw significance testing
+
+| Function | Description |
+| --- | --- |
+| `jackstraw_rajive()` | Run the jackstraw permutation test to identify variables with significantly non-zero joint loadings. Returns a `"jackstraw_rajive"` object. |
+| `print.jackstraw_rajive()` | Print a significance table for a `"jackstraw_rajive"` object. |
+| `summary.jackstraw_rajive()` | Return and print a `data.frame` summary of jackstraw results. |
+| `get_significant_vars()` | Extract significant variable names/indices for a given block and component from jackstraw results. |
+| `plot_jackstraw()` | Diagnostic plots for jackstraw results: p-value histogram, F-stat scatter plot, or loadings significance heatmap. |
 

@@ -435,3 +435,298 @@ showVarExplained_robust <- function(ajiveResults, blocks){
   names(VarProp) <- c('Joint', 'Indiv', 'Resid')
   VarProp
 }
+
+
+# ---------------------------------------------------------------------------
+# Utility functions for interpreting RaJIVE results
+# ---------------------------------------------------------------------------
+
+#' Print method for rajive objects
+#'
+#' Displays a concise summary of the RaJIVE decomposition: number of blocks,
+#' estimated joint rank, and individual rank for each data block.
+#'
+#' @param x An object of class \code{"rajive"} returned by \code{\link{Rajive}}.
+#' @param ... Ignored.
+#'
+#' @return \code{x} invisibly.
+#'
+#' @examples
+#' \donttest{
+#' n <- 30; pks <- c(40, 30)
+#' Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' res <- Rajive(Y$sim_data, c(5, 4))
+#' print(res)
+#' }
+#'
+#' @export
+print.rajive <- function(x, ...) {
+  K <- length(x$block_decomps) / 3L
+  cat("RaJIVE Decomposition\n")
+  cat(sprintf("  Number of blocks : %d\n", K))
+  cat(sprintf("  Joint rank       : %d\n", x$joint_rank))
+  indiv_ranks <- vapply(seq_len(K),
+                        function(k) get_individual_rank(x, k),
+                        numeric(1L))
+  cat(sprintf("  Individual ranks : %s\n",
+              paste(indiv_ranks, collapse = ", ")))
+  invisible(x)
+}
+
+
+#' Summary method for rajive objects
+#'
+#' Returns (and prints) a \code{data.frame} with the joint rank and
+#' individual rank for every data block.
+#'
+#' @param object An object of class \code{"rajive"} returned by
+#'   \code{\link{Rajive}}.
+#' @param ... Ignored.
+#'
+#' @return A \code{data.frame} with columns \code{block},
+#'   \code{joint_rank}, and \code{individual_rank}, returned invisibly.
+#'
+#' @examples
+#' \donttest{
+#' n <- 30; pks <- c(40, 30)
+#' Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' res <- Rajive(Y$sim_data, c(5, 4))
+#' summary(res)
+#' }
+#'
+#' @export
+summary.rajive <- function(object, ...) {
+  df <- get_all_ranks(object)
+  print(df, row.names = FALSE)
+  invisible(df)
+}
+
+
+#' Joint Scores
+#'
+#' Returns the shared (cross-block) joint score matrix from a RaJIVE
+#' decomposition.  Each column corresponds to one joint component and each
+#' row to one observation.
+#'
+#' @param ajive_output List returned by \code{\link{Rajive}}.
+#'
+#' @return An \eqn{n \times \text{joint\_rank}} numeric matrix of joint scores.
+#'
+#' @examples
+#' \donttest{
+#' n <- 30; pks <- c(40, 30)
+#' Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' res <- Rajive(Y$sim_data, c(5, 4))
+#' get_joint_scores(res)
+#' }
+#'
+#' @export
+get_joint_scores <- function(ajive_output) {
+  ajive_output[["joint_scores"]]
+}
+
+
+#' Extract a reconstructed block matrix
+#'
+#' Returns the full reconstructed matrix for the joint (\eqn{J}), individual
+#' (\eqn{I}), or noise (\eqn{E}) component of a single data block from a
+#' RaJIVE decomposition.
+#'
+#' @param ajive_output List returned by \code{\link{Rajive}}.
+#' @param k Positive integer; index of the data block.
+#' @param type Character string; one of \code{"joint"}, \code{"individual"},
+#'   or \code{"noise"}.
+#'
+#' @return The reconstructed matrix for the requested component and block.
+#'   Returns \code{NA} if \code{\link{Rajive}} was called with
+#'   \code{full = FALSE}.
+#'
+#' @examples
+#' \donttest{
+#' n <- 30; pks <- c(40, 30)
+#' Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' res <- Rajive(Y$sim_data, c(5, 4))
+#' J1 <- get_block_matrix(res, k = 1, type = "joint")
+#' }
+#'
+#' @export
+get_block_matrix <- function(ajive_output, k, type = c("joint", "individual", "noise")) {
+  type <- match.arg(type)
+  if (type == "joint")       return(ajive_output$block_decomps[[3L * (k - 1L) + 2L]][["full"]])
+  if (type == "individual")  return(ajive_output$block_decomps[[3L * (k - 1L) + 1L]][["full"]])
+  if (type == "noise")       return(ajive_output$block_decomps[[3L * k]])
+}
+
+
+#' Summary table of all ranks
+#'
+#' Returns a \code{data.frame} with the joint rank and individual rank for
+#' every data block, making it easy to inspect all estimated ranks at once.
+#'
+#' @param ajive_output List returned by \code{\link{Rajive}}.
+#'
+#' @return A \code{data.frame} with columns \code{block},
+#'   \code{joint_rank}, and \code{individual_rank}.
+#'
+#' @examples
+#' \donttest{
+#' n <- 30; pks <- c(40, 30)
+#' Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' res <- Rajive(Y$sim_data, c(5, 4))
+#' get_all_ranks(res)
+#' }
+#'
+#' @export
+get_all_ranks <- function(ajive_output) {
+  K <- length(ajive_output$block_decomps) / 3L
+  indiv_ranks <- vapply(seq_len(K),
+                        function(k) get_individual_rank(ajive_output, k),
+                        numeric(1L))
+  data.frame(
+    block           = paste0("block", seq_len(K)),
+    joint_rank      = rep(ajive_output$joint_rank, K),
+    individual_rank = indiv_ranks,
+    stringsAsFactors = FALSE
+  )
+}
+
+
+#' Bar chart of variance explained
+#'
+#' Produces a stacked bar chart showing the proportion of total variance
+#' explained by the joint, individual, and residual components for each
+#' data block.
+#'
+#' @param ajive_output List returned by \code{\link{Rajive}}.
+#' @param blocks List of data matrices (the same list passed to
+#'   \code{\link{Rajive}}).
+#'
+#' @return A \code{ggplot2} object.
+#'
+#' @examples
+#' \donttest{
+#' n <- 30; pks <- c(40, 30)
+#' Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' data.ajive <- Y$sim_data
+#' res <- Rajive(data.ajive, c(5, 4))
+#' plot_variance_explained(res, data.ajive)
+#' }
+#'
+#' @import ggplot2
+#' @export
+plot_variance_explained <- function(ajive_output, blocks) {
+  var_exp <- showVarExplained_robust(ajive_output, blocks)
+  K <- length(blocks)
+
+  plot_df <- data.frame(
+    block     = rep(paste0("block", seq_len(K)), 3L),
+    component = c(rep("Joint",      K),
+                  rep("Individual", K),
+                  rep("Residual",   K)),
+    proportion = c(unlist(var_exp[["Joint"]]),
+                   unlist(var_exp[["Indiv"]]),
+                   unlist(var_exp[["Resid"]])),
+    stringsAsFactors = FALSE
+  )
+  plot_df$component <- factor(plot_df$component,
+                               levels = c("Residual", "Individual", "Joint"))
+
+  ggplot(plot_df, aes(x = block, y = proportion, fill = component)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c(
+      "Joint"      = "#2c7bb6",
+      "Individual" = "#abd9e9",
+      "Residual"   = "#d7191c"
+    )) +
+    labs(
+      title = "Proportion of Variance Explained",
+      x     = "Data Block",
+      y     = "Proportion",
+      fill  = "Component"
+    ) +
+    ylim(0, 1) +
+    theme_bw()
+}
+
+
+#' Scatter plot of block scores
+#'
+#' Plots two score components against each other for a given data block and
+#' component type (joint or individual), making it easy to visualise the
+#' latent structure captured by the RaJIVE decomposition.
+#'
+#' @param ajive_output List returned by \code{\link{Rajive}}.
+#' @param k Positive integer; index of the data block.
+#' @param type Character string; \code{"joint"} or \code{"individual"}.
+#' @param comp_x Positive integer; index of the component to plot on the
+#'   x-axis.  Default \code{1}.
+#' @param comp_y Positive integer; index of the component to plot on the
+#'   y-axis.  Default \code{2}.
+#' @param group Optional factor or vector (length equal to the number of
+#'   observations) used to colour the points.  \code{NULL} (default) gives
+#'   uniform colouring.
+#'
+#' @return A \code{ggplot2} object.
+#'
+#' @examples
+#' \donttest{
+#' n <- 50; pks <- c(60, 40)
+#' Y <- ajive.data.sim(K = 2, rankJ = 3, rankA = c(5, 4), n = n,
+#'                     pks = pks, dist.type = 1)
+#' res <- Rajive(Y$sim_data, c(5, 4))
+#' plot_scores(res, k = 1, type = "joint")
+#' plot_scores(res, k = 2, type = "individual", comp_x = 1, comp_y = 2)
+#' }
+#'
+#' @import ggplot2
+#' @export
+plot_scores <- function(ajive_output, k,
+                        type   = c("joint", "individual"),
+                        comp_x = 1L,
+                        comp_y = 2L,
+                        group  = NULL) {
+  type   <- match.arg(type)
+  scores <- get_block_scores(ajive_output, k, type)
+
+  n_comp <- ncol(scores)
+  if (comp_x > n_comp || comp_y > n_comp) {
+    stop(sprintf(
+      "'comp_x' and 'comp_y' must each be <= %d (the number of %s components for block %d).",
+      n_comp, type, k
+    ), call. = FALSE)
+  }
+
+  plot_df <- data.frame(x = scores[, comp_x], y = scores[, comp_y])
+
+  if (!is.null(group)) {
+    if (length(group) != nrow(scores)) {
+      stop("'group' must have the same length as the number of observations.",
+           call. = FALSE)
+    }
+    plot_df$group <- as.factor(group)
+  }
+
+  type_label <- paste0(toupper(substring(type, 1L, 1L)), substring(type, 2L))
+  p <- ggplot(plot_df, aes(x = x, y = y))
+
+  if (!is.null(group)) {
+    p <- p + geom_point(aes(colour = group))
+  } else {
+    p <- p + geom_point()
+  }
+
+  p +
+    labs(
+      title = sprintf("%s scores: block %d (comp %d vs comp %d)",
+                      type_label, k, comp_x, comp_y),
+      x = sprintf("Component %d", comp_x),
+      y = sprintf("Component %d", comp_y)
+    ) +
+    theme_bw()
+}
