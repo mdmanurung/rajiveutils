@@ -12,37 +12,37 @@ knitr::opts_chunk$set(
   out.width = "100%"
 )
 ```
-# RaJIVE
+# rajiveutils
 
 <!-- badges: start -->
 <!-- badges: end -->
 
-RaJIVE (Robust Angle based Joint and Individual Variation Explained) is a robust alternative to the aJIVE method for the estimation of joint and individual components in the presence of outliers in multi-source data. It decomposes the multi-source data into joint, individual and residual (noise) contributions. The decomposition is robust with respect to outliers and other types of noises present in the data.
+rajiveutils (Robust Angle based Joint and Individual Variation Explained) is a robust alternative to the aJIVE method for the estimation of joint and individual components in the presence of outliers in multi-source data. It decomposes the multi-source data into joint, individual and residual (noise) contributions. The decomposition is robust with respect to outliers and other types of noises present in the data.
 
 ## Installation
 
-You can install the released version of RaJIVE from [CRAN](https://CRAN.R-project.org) with:
+You can install the released version of rajiveutils from [CRAN](https://CRAN.R-project.org) with:
 
 ``` r
-install.packages("RaJIVE")
+install.packages("rajiveutils")
 ```
 
 And the development version from [GitHub](https://github.com/) with:
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("ericaponzi/RaJIVE")
+devtools::install_github("mdmanurung/RaJIVEutils")
 ```
 ## Example
 
-This is a basic example which shows how to use RaJIVE on simple simulated data: 
+This is a basic example which shows how to use rajiveutils on simple simulated data: 
 
 
 ### Running robust aJIVE
 
 
 ```{r example}
-library(RaJIVE)
+library(rajiveutils)
 ## basic example code
 n <- 50
 pks <- c(100, 80, 50)
