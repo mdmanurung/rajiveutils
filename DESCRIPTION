@@ -23,5 +23,6 @@ Suggests:
     dplyr
 Imports: ggplot2, 
 	doParallel,
-        foreach
+        foreach,
+        stats
 RoxygenNote: 7.1.1
