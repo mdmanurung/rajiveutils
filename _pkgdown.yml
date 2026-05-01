@@ -25,6 +25,7 @@ reference:
     contents:
       - Rajive
       - ajive.data.sim
+      - sim_dist
 
   - title: "Rank accessors"
     desc: "Extract rank estimates from a `rajive` object."
@@ -57,7 +58,32 @@ reference:
     desc: "Heatmaps and score plots."
     contents:
       - decomposition_heatmaps_robustH
+      - data_heatmap
       - plot_scores
+
+  - title: "Internal decomposition helpers"
+    desc: "Low-level functions used internally by `Rajive()` to compute joint and individual decompositions."
+    contents:
+      - get_final_decomposition_robustH
+      - get_individual_decomposition_robustH
+      - get_joint_decomposition_robustH
+      - get_joint_scores_robustH
+
+  - title: "Robust SVD utilities"
+    desc: "Functions for computing, truncating, and reconstructing the robust SVD."
+    contents:
+      - RobRSVD.all
+      - get_svd_robustH
+      - get_sv_threshold
+      - truncate_svd
+      - svd_reconstruction
+
+  - title: "Rank estimation internals"
+    desc: "Wedin bound and random direction bound helpers used in joint rank estimation."
+    contents:
+      - get_random_direction_bound_robustH
+      - get_wedin_bound_samples
+      - wedin_bound_resampling
 
   - title: "Jackstraw significance testing"
     desc: >

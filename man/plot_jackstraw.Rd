@@ -4,24 +4,29 @@
 \alias{plot_jackstraw}
 \title{Plot jackstraw results}
 \usage{
-plot_jackstraw(jackstraw_result, type = c("pvalue_hist", "scatter",
-  "loadings_significance"), block = 1L, component = 1L,
-  label_top = 10L, ...)
+plot_jackstraw(
+  jackstraw_result,
+  type = c("pvalue_hist", "scatter", "loadings_significance"),
+  block = 1L,
+  component = 1L,
+  label_top = 10L,
+  ...
+)
 }
 \arguments{
 \item{jackstraw_result}{An object of class \code{"jackstraw_rajive"}.}
 
 \item{type}{Character string; one of \code{"pvalue_hist"},
-  \code{"scatter"}, or \code{"loadings_significance"}.}
+\code{"scatter"}, or \code{"loadings_significance"}.}
 
 \item{block}{Positive integer; which block to plot.  Default \code{1}.}
 
 \item{component}{Positive integer; which joint component to plot (used for
-  \code{"pvalue_hist"} and \code{"scatter"}).  Default \code{1}.}
+\code{"pvalue_hist"} and \code{"scatter"}).  Default \code{1}.}
 
 \item{label_top}{Non-negative integer; for \code{"scatter"}, the number of
-  top-significant features to label.  Set to \code{0} to suppress labels.
-  Default \code{10}.}
+top-significant features to label.  Set to \code{0} to suppress labels.
+Default \code{10}.}
 
 \item{...}{Ignored (reserved for future use).}
 }
@@ -31,23 +36,22 @@ A \code{ggplot2} object.
 \description{
 Produces diagnostic plots for a \code{\link{jackstraw_rajive}} object.
 Three plot types are supported (selected via \code{type}):
-
+}
+\details{
 \describe{
   \item{\code{"pvalue_hist"}}{Histogram of empirical p-values for a single
-    block / component.}
-  \item{\code{"scatter"}}{Scatter plot of observed F-statistic versus
-    \eqn{-\log_{10}(p\text{-value})} for a single block / component.}
+    block / component.  A horizontal reference line is drawn at the
+    effective significance threshold (Bonferroni-adjusted if applicable).
+    Enrichment of small p-values indicates real signal.}
+  \item{\code{"scatter"}}{Scatter plot of observed F-statistic (x-axis)
+    versus \eqn{-\log_{10}(p\text{-value})} (y-axis) for a single block /
+    component.  Significant features are coloured red; non-significant
+    features are grey.  Features are optionally labelled when column names
+    are present and \code{label_top > 0}.}
   \item{\code{"loadings_significance"}}{Heatmap of
     \eqn{-\log_{10}(p\text{-value})} across all joint components for a
-    single block.}
+    single block.  Significant cells are marked with an asterisk.}
 }
-}
-\references{
-Yang X, Hoadley KA, Hannig J, Marron JS (2021). Statistical inference for
-data integration. \emph{arXiv:2109.12272}.
-}
-\seealso{
-\code{\link{jackstraw_rajive}}
 }
 \examples{
 \donttest{
@@ -64,4 +68,12 @@ plot_jackstraw(js, type = "pvalue_hist", block = 1, component = 1)
 plot_jackstraw(js, type = "scatter",     block = 1, component = 1)
 plot_jackstraw(js, type = "loadings_significance", block = 1)
 }
+
+}
+\references{
+Yang X, Hoadley KA, Hannig J, Marron JS (2021). Statistical inference for
+data integration. \emph{arXiv:2109.12272}.
+}
+\seealso{
+\code{\link{jackstraw_rajive}}
 }

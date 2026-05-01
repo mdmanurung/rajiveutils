@@ -4,8 +4,14 @@
 \alias{plot_scores}
 \title{Scatter plot of block scores}
 \usage{
-plot_scores(ajive_output, k, type = c("joint", "individual"),
-  comp_x = 1L, comp_y = 2L, group = NULL)
+plot_scores(
+  ajive_output,
+  k,
+  type = c("joint", "individual"),
+  comp_x = 1L,
+  comp_y = 2L,
+  group = NULL
+)
 }
 \arguments{
 \item{ajive_output}{List returned by \code{\link{Rajive}}.}
@@ -15,14 +21,14 @@ plot_scores(ajive_output, k, type = c("joint", "individual"),
 \item{type}{Character string; \code{"joint"} or \code{"individual"}.}
 
 \item{comp_x}{Positive integer; index of the component to plot on the
-  x-axis.  Default \code{1}.}
+x-axis.  Default \code{1}.}
 
 \item{comp_y}{Positive integer; index of the component to plot on the
-  y-axis.  Default \code{2}.}
+y-axis.  Default \code{2}.}
 
 \item{group}{Optional factor or vector (length equal to the number of
-  observations) used to colour the points.  \code{NULL} (default) gives
-  uniform colouring.}
+observations) used to colour the points.  \code{NULL} (default) gives
+uniform colouring.}
 }
 \value{
 A \code{ggplot2} object.
@@ -41,4 +47,5 @@ res <- Rajive(Y$sim_data, c(5, 4))
 plot_scores(res, k = 1, type = "joint")
 plot_scores(res, k = 2, type = "individual", comp_x = 1, comp_y = 2)
 }
+
 }

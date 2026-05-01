@@ -4,26 +4,33 @@
 \alias{jackstraw_rajive}
 \title{Jackstraw significance testing for RaJIVE joint loadings}
 \usage{
-jackstraw_rajive(ajive_output, blocks, alpha = 0.05, n_null = 10,
-  correction = c("bonferroni", "BH", "none"))
+jackstraw_rajive(
+  ajive_output,
+  blocks,
+  alpha = 0.05,
+  n_null = 10,
+  correction = c("bonferroni", "BH", "none")
+)
 }
 \arguments{
 \item{ajive_output}{List returned by \code{\link{Rajive}}.}
 
 \item{blocks}{List of data matrices (same list passed to
-  \code{\link{Rajive}}).}
+\code{\link{Rajive}}).}
 
 \item{alpha}{Numeric scalar; desired significance level.  Default
-  \code{0.05}.}
+\code{0.05}.}
 
 \item{n_null}{Positive integer; number of null F-statistics generated per
-  feature per joint component.  Larger values give more stable p-values
-  at the cost of computation time.  Default \code{10}; recommended
-  \code{50}--\code{100} for publication-quality results.}
+feature per joint component.  Larger values give more stable p-values
+at the cost of computation time.  Default \code{10}; recommended
+\code{50}--\code{100} for publication-quality results.}
 
 \item{correction}{Character string controlling multiple-testing correction.
-  One of \code{"bonferroni"} (default), \code{"BH"} (Benjamini--Hochberg
-  FDR), or \code{"none"}.}
+One of \code{"bonferroni"} (default), \code{"BH"} (Benjamini--Hochberg
+FDR), or \code{"none"}.  \code{"bonferroni"} divides \code{alpha} by
+\eqn{d_k \times \text{joint\_rank}} for each block, matching the
+original Python implementation.}
 }
 \value{
 An object of class \code{"jackstraw_rajive"}: a named list with one
@@ -59,18 +66,6 @@ feature values, thereby breaking the association with the joint scores.
 Empirical p-values are computed and optionally corrected for multiple
 testing.
 }
-\references{
-Yang X, Hoadley KA, Hannig J, Marron JS (2021). Statistical inference for
-data integration. \emph{arXiv:2109.12272}.
-
-Chung NC, Storey JD (2015). Statistical significance of variables driving
-systematic variation in high-dimensional data.
-\emph{Bioinformatics}, 31(4):545--554.
-}
-\seealso{
-\code{\link{Rajive}}, \code{\link{plot_jackstraw}},
-  \code{\link{get_significant_vars}}
-}
 \examples{
 \donttest{
 set.seed(42)
@@ -85,4 +80,17 @@ js <- jackstraw_rajive(ajive_result, data.ajive, alpha = 0.05, n_null = 10)
 print(js)
 summary(js)
 }
+
+}
+\references{
+Yang X, Hoadley KA, Hannig J, Marron JS (2021). Statistical inference for
+data integration. \emph{arXiv:2109.12272}.
+
+Chung NC, Storey JD (2015). Statistical significance of variables driving
+systematic variation in high-dimensional data.
+\emph{Bioinformatics}, 31(4):545--554.
+}
+\seealso{
+\code{\link{Rajive}}, \code{\link{plot_jackstraw}},
+  \code{\link{get_significant_vars}}
 }

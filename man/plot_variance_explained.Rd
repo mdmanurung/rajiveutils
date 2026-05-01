@@ -10,7 +10,7 @@ plot_variance_explained(ajive_output, blocks)
 \item{ajive_output}{List returned by \code{\link{Rajive}}.}
 
 \item{blocks}{List of data matrices (the same list passed to
-  \code{\link{Rajive}}).}
+\code{\link{Rajive}}).}
 }
 \value{
 A \code{ggplot2} object.
@@ -29,4 +29,5 @@ data.ajive <- Y$sim_data
 res <- Rajive(data.ajive, c(5, 4))
 plot_variance_explained(res, data.ajive)
 }
+
 }

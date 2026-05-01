@@ -8,7 +8,7 @@
 }
 \arguments{
 \item{object}{An object of class \code{"rajive"} returned by
-  \code{\link{Rajive}}.}
+\code{\link{Rajive}}.}
 
 \item{...}{Ignored.}
 }
@@ -28,4 +28,5 @@ Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
 res <- Rajive(Y$sim_data, c(5, 4))
 summary(res)
 }
+
 }

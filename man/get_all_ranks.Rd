@@ -25,4 +25,5 @@ Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
 res <- Rajive(Y$sim_data, c(5, 4))
 get_all_ranks(res)
 }
+
 }

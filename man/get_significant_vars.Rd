@@ -35,4 +35,5 @@ ajive_result <- Rajive(data.ajive, initial_signal_ranks)
 js <- jackstraw_rajive(ajive_result, data.ajive, alpha = 0.05, n_null = 10)
 get_significant_vars(js, block = 1, component = 1)
 }
+
 }

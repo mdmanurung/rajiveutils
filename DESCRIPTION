@@ -26,4 +26,6 @@ Imports: ggplot2,
 	doParallel,
         foreach,
         stats
-RoxygenNote: 7.1.1
+URL: https://mdmanurung.github.io/RaJIVEutils/
+BugReports: https://github.com/mdmanurung/RaJIVEutils/issues
+RoxygenNote: 7.3.2

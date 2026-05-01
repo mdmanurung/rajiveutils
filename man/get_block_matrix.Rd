@@ -12,7 +12,7 @@ get_block_matrix(ajive_output, k, type = c("joint", "individual", "noise"))
 \item{k}{Positive integer; index of the data block.}
 
 \item{type}{Character string; one of \code{"joint"}, \code{"individual"},
-  or \code{"noise"}.}
+or \code{"noise"}.}
 }
 \value{
 The reconstructed matrix for the requested component and block.
@@ -32,4 +32,5 @@ Y <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 4), n = n,
 res <- Rajive(Y$sim_data, c(5, 4))
 J1 <- get_block_matrix(res, k = 1, type = "joint")
 }
+
 }
