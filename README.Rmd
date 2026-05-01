@@ -117,7 +117,7 @@ E3 <- get_block_matrix(ajive.results.robust, k = 3, type = "noise")
 
 - Heatmap decomposition:
 
-```{r}
+```{r heatmap, fig.alt="Heatmaps of raw data and RaJIVE joint, individual, and noise decomposition for all blocks"}
 decomposition_heatmaps_robustH(data.ajive, ajive.results.robust)
 ```
 

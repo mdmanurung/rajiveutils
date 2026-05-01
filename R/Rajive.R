@@ -8,8 +8,23 @@
 #' @param n_wedin_samples Integer. Number of wedin bound samples to draw for each data matrix.
 #' @param n_rand_dir_samples Integer. Number of random direction bound samples to draw.
 #' @param joint_rank Integer or NA. User specified joint_rank. If NA will be estimated from data.
-
-#' @return The aJIVE decomposition.
+#' @param num_cores Integer. Number of cores to use for parallel computation (block SVD,
+#'   singular value extraction, Wedin bound resampling, and random direction bound sampling).
+#'   Default \code{1L} (serial). Set to a value greater than 1 to enable parallel execution
+#'   via \code{\link[parallel]{mclapply}} and \code{\link[doParallel]{registerDoParallel}}.
+#'
+#' @return An object of class \code{"rajive"}: a named list containing:
+#'   \describe{
+#'     \item{\code{block_decomps}}{A list matrix (length \eqn{3 \times K}) of per-block
+#'       decompositions. For block \eqn{k}: individual component at index \eqn{3(k-1)+1},
+#'       joint component at \eqn{3(k-1)+2}, noise (residual) at \eqn{3(k-1)+3}.}
+#'     \item{\code{joint_scores}}{The \eqn{n \times r_J} matrix of shared joint score
+#'       vectors, where \eqn{r_J} is the estimated (or user-supplied) joint rank.}
+#'     \item{\code{joint_rank}}{Integer. The estimated (or user-supplied) joint rank.}
+#'     \item{\code{joint_rank_sel}}{A list of diagnostic information from the joint rank
+#'       selection step (observed singular values, Wedin samples, random direction samples,
+#'       thresholds).}
+#'   }
 #'
 #' @examples
 #' \donttest{

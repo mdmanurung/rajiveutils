@@ -73,6 +73,7 @@ reference:
     desc: "Functions for computing, truncating, and reconstructing the robust SVD."
     contents:
       - RobRSVD.all
+      - RobRSVD1
       - get_svd_robustH
       - get_sv_threshold
       - truncate_svd
@@ -95,3 +96,8 @@ reference:
       - summary.jackstraw_rajive
       - get_significant_vars
       - plot_jackstraw
+
+  - title: "Package"
+    desc: "Package-level documentation."
+    contents:
+      - rajiveutils-package
