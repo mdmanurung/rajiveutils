@@ -248,6 +248,9 @@ get_joint_scores_robustH <- function(blocks, block_svd, initial_signal_ranks, sv
   joint_rank <- length(to_keep)
   joint_scores <- joint_scores[ , to_keep, drop=FALSE]
 
+  rank_sel_results[['identif_dropped']] <- if (length(to_remove) > 0L)
+    sort(unique(to_remove)) else integer(0L)
+
   list(joint_scores=joint_scores, rank_sel_results=rank_sel_results)
 }
 

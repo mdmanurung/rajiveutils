@@ -16,22 +16,24 @@ knitr::opts_chunk$set(
   message   = FALSE,
   warning   = FALSE
 )
-run_heavy <- TRUE   # set to TRUE once to regenerate .rds cache files
+run_heavy <- FALSE  # set to TRUE once to regenerate .rds cache files
 data_dir  <- "data"
 ```
+
 
 
 ## Introduction
 
 `jackstraw_rajive()` identifies which variables (features) in each data
 block have statistically significant nonzero joint loadings after a RaJIVE
-decomposition.  The algorithm permutes a small fraction of each variable's
-observations, recomputes the decomposition, and accumulates null F-statistics
-for comparison against observed F-statistics.
+decomposition. The current implementation uses a computationally efficient
+score-permutation approximation: it samples feature rows, permutes the joint
+score vector to break feature-score association under the null, and
+accumulates null F-statistics for comparison against observed F-statistics.
 
 The computational cost scales with:
 
-- **n** (samples) — larger SVD; quadratic effect expected
+- **n** (samples) — larger linear algebra cost as sample size increases
 - **p** (features per block) — more F-statistics to compute per null replicate
 - **n_null** (null replicates) — linear effect; most controllable parameter
 
@@ -47,6 +49,7 @@ library(rajiveplus)
 library(peakRAM)
 library(ggplot2)
 ```
+
 
 
 ---
@@ -90,6 +93,7 @@ ggplot(time_n_df, aes(x = n, y = elapsed)) +
 ```
 
 
+
 ---
 
 ## Time vs Feature Count (p)
@@ -130,6 +134,7 @@ ggplot(time_p_df, aes(x = p, y = elapsed)) +
        x = "Features per block (p)", y = "Elapsed time (s)") +
   theme_bw()
 ```
+
 
 
 ---
@@ -175,6 +180,7 @@ ggplot(time_nnull_df, aes(x = n_null, y = elapsed)) +
        x = "n_null (null replicates)", y = "Elapsed time (s)") +
   theme_bw()
 ```
+
 
 
 ---
@@ -236,6 +242,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 ```
 
 
+
 ---
 
 ## profmem: Allocation Profile (Small Data)
@@ -269,6 +276,7 @@ if (requireNamespace("profmem", quietly = TRUE)) {
 ```
 
 
+
 ---
 
 ## profvis: Interactive Profile
@@ -287,6 +295,7 @@ if (requireNamespace("profvis", quietly = TRUE)) {
   profvis::profvis(jackstraw_rajive(fit_pv, blks_pv, n_null = 10L))
 }
 ```
+
 
 
 ---
@@ -325,6 +334,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 ```
 
 
+
 ---
 
 ## Practical Guide: Choosing n_null
@@ -350,6 +360,7 @@ knitr::kable(guide_df,
              col.names = c("Dataset size", "n_null", "Expected time", "Note"),
              caption   = "Practical n_null recommendations for jackstraw_rajive()")
 ```
+
 
 
 The linear scaling of `n_null` means you can always run a quick exploratory

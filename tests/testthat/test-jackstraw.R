@@ -91,6 +91,7 @@ test_that("jackstraw_rajive returns correct structure", {
   joint_rank <- attr(js, "joint_rank")
   K          <- attr(js, "n_blocks")
   expect_equal(K, 2L)
+  expect_equal(attr(js, "n_tests"), sum(vapply(res$blocks, ncol, integer(1L))) * joint_rank)
 
   # Block names
   expect_equal(names(js), c("block1", "block2"))
@@ -113,12 +114,12 @@ test_that("jackstraw_rajive returns correct structure", {
 })
 
 # ---------------------------------------------------------------------------
-# 4. Bonferroni gives fewer or equal significant variables than "none"
+# 4. Global correction behavior
 # ---------------------------------------------------------------------------
 
 test_that("Bonferroni correction is more conservative than no correction", {
   # Use the same seed before each call so the null distributions are identical.
-  # Under the same empirical p-values, Bonferroni (alpha/(d*jr)) is always
+  # Under the same empirical p-values, global Bonferroni is always
   # a stricter threshold than "none" (alpha), so significant_bonf is a
   # subset of significant_none.
   res <- make_simple_ajive(seed = 99L)
@@ -140,6 +141,32 @@ test_that("Bonferroni correction is more conservative than no correction", {
       expect_lte(n_sig_bonf, n_sig_none)
     }
   }
+})
+
+test_that("BH adjustment is applied globally across blocks and components", {
+  res <- make_simple_ajive(seed = 123L)
+
+  set.seed(321L)
+  js_bh <- jackstraw_rajive(res$ajive_out, res$blocks,
+                            alpha = 0.05, n_null = 10,
+                            correction = "BH")
+
+  raw_p <- unlist(lapply(js_bh, function(block_result) {
+    unlist(lapply(block_result, `[[`, "p_values"), use.names = FALSE)
+  }), use.names = FALSE)
+  expected_adj <- p.adjust(raw_p, method = "BH")
+  observed_adj <- unlist(lapply(js_bh, function(block_result) {
+    unlist(lapply(block_result, `[[`, "p_adj"), use.names = FALSE)
+  }), use.names = FALSE)
+
+  expect_equal(observed_adj, expected_adj)
+})
+
+test_that("default correction is BH", {
+  res <- make_simple_ajive(seed = 11L)
+  js <- jackstraw_rajive(res$ajive_out, res$blocks, n_null = 5)
+
+  expect_identical(attr(js, "correction"), "BH")
 })
 
 # ---------------------------------------------------------------------------

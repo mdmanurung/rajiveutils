@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-cd /exports/para-lipg-hpc/mdmanurung/rajiveplus
+# Resolve project root relative to this script so renames/moves do not break checkpoints.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 INTERVAL_SECONDS=3600
 LOOP_MODE=0
