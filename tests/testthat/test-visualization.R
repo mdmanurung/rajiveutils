@@ -268,3 +268,65 @@ test_that("identif_dropped is empty when no components were removed", {
   dropped <- fit$joint_rank_sel$identif_dropped
   expect_true(length(dropped) == 0L || all(dropped > 0L))
 })
+
+# ---------------------------------------------------------------------------
+# G. Statistical guardrail integrations (#3-#5)
+# ---------------------------------------------------------------------------
+
+test_that("G1: associate_components returns table and emits score-estimation warning", {
+  fit  <- make_diag_fit()
+  n    <- nrow(fit$joint_scores)
+  meta <- data.frame(x = rnorm(n))
+
+  expect_message(
+    res <- associate_components(fit, meta, variable = "x", mode = "continuous"),
+    regexp = "Score estimation error is NOT propagated"
+  )
+
+  expect_true(is.data.frame(res))
+  expect_true(all(c("variable", "component", "stat", "p_value", "p_adj", "method") %in% names(res)))
+})
+
+test_that("G2: survival split mode emits anti-conservative warning", {
+  fit  <- make_diag_fit()
+  n    <- nrow(fit$joint_scores)
+  meta <- data.frame(
+    score_ref = rnorm(n),
+    time      = rexp(n, rate = 0.1),
+    status    = sample(c(0L, 1L), n, replace = TRUE)
+  )
+
+  expect_message(
+    associate_components(
+      fit, meta,
+      mode = "survival",
+      variable = "score_ref",
+      time_col = "time",
+      status_col = "status",
+      split = "median"
+    ),
+    regexp = "anti-conservative"
+  )
+})
+
+test_that("G3: assess_stability(loadings) returns aligned loading summaries", {
+  set.seed(123)
+  Y <- ajive.data.sim(K = 2, rankJ = 1, rankA = c(2, 2),
+                      n = 24, pks = c(15, 12), dist.type = 1)
+  fit <- Rajive(Y$sim_data, c(2, 2),
+                n_wedin_samples = 20L, n_rand_dir_samples = 20L)
+
+  stab <- assess_stability(
+    ajive_output = fit,
+    blocks = Y$sim_data,
+    initial_signal_ranks = c(2, 2),
+    target = "loadings",
+    B = 3,
+    sample_frac = 0.8
+  )
+
+  expect_true(is.list(stab))
+  expect_true(length(stab) == 2L)
+  expect_true(all(c("mean_loading", "sd_loading", "cos_similarity") %in% names(stab[[1L]])))
+  expect_true(is.numeric(stab[[1L]]$cos_similarity))
+})

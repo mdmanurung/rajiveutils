@@ -67,10 +67,11 @@ Statistical implication:
 - raw bootstrap loading variation is dominated by rotational indeterminacy
 - unaligned variability summaries are not interpretable
 
-Required future implementation:
-- implement orthogonal Procrustes alignment inside any future
-  `bootstrap_loading_stability()` or `assess_stability(target = "loadings")`
-- document that all loading stability summaries are computed after alignment
+Implemented action (2026-05-05 Session 31):
+- implemented orthogonal Procrustes alignment in
+  `assess_stability(target = "loadings")`
+- loading-stability summaries (`mean_loading`, `sd_loading`,
+  `cos_similarity`) are computed after alignment
 
 ### 4. Planned Association Helpers Need Explicit Inferential Warnings
 
@@ -81,10 +82,10 @@ Statistical implication:
 - effect sizes are attenuated
 - naive p-values can be misinterpreted if score estimation uncertainty is ignored
 
-Required future implementation:
-- document that component-score association is post-decomposition association,
-  not exact fixed-design inference
-- warn users that score estimation error is not propagated into p-values
+Implemented action (2026-05-05 Session 31):
+- `associate_components()` now documents and emits an inferential warning that
+  component-score association is post-decomposition and that score estimation
+  error is not propagated into p-values
 
 ### 5. Planned Survival Split Helpers Need A Bias Warning
 
@@ -92,11 +93,11 @@ Any future survival helper using score splitting such as median/tertile groups
 must state that split-based inference is data-adaptive and may be
 anti-conservative.
 
-Required future implementation:
-- avoid presenting split-based survival p-values as primary inference
-- prefer continuous-score Cox models
-- if split-based displays are retained, label them as descriptive unless a
-  correction is added
+Implemented action (2026-05-05 Session 31):
+- `associate_components()` now warns that split-based survival inference is
+  data-adaptive and may be anti-conservative
+- documentation and runtime messaging prefer continuous-score Cox
+  (`split = "none"`) as primary inference and labels split modes as descriptive
 
 ## Important But Non-Critical Findings
 
@@ -110,9 +111,10 @@ The AJIVE rank selection combines:
 This is a practical conservative rule, but it should not be described as having
 formal FDR or FWER control for rank selection.
 
-Required future implementation:
-- document the threshold as heuristic / conservative
-- avoid overstating inferential guarantees
+Implemented action (2026-05-05 Session 31):
+- `plot_components(plot_type = "rank_threshold")` documentation now describes
+  the threshold as a practical heuristic/conservative rule and explicitly
+  avoids FWER/FDR overclaims
 
 ### 7. Variance Explained Language Should Be Tightened
 
@@ -120,17 +122,19 @@ For AJIVE, "variance explained" should distinguish:
 - joint variance explained
 - block-specific individual variance explained after joint signal removal
 
-Required future implementation:
-- avoid ambiguous PCA-style language in future plotting/reporting helpers
+Implemented action (2026-05-05 Session 31):
+- `plot_components()` documentation now sets language guardrails for future
+  variance outputs: joint vs block-specific individual variance after joint
+  removal must be reported distinctly
 
 ### 8. Jackstraw Significance Means Association With Estimated Scores
 
 "Significant features" in jackstraw should be interpreted as features associated
 with the estimated joint component scores, not necessarily causal drivers.
 
-Required future implementation:
-- prefer wording such as "associated with the component"
-- avoid causal language such as "driving" unless separately justified
+Implemented action (2026-05-05 Session 31):
+- `jackstraw_rajive()` documentation now uses association-first wording and
+  explicitly warns against causal overinterpretation
 
 ## Implementation Priority
 
@@ -139,15 +143,14 @@ Required future implementation:
 - global Bonferroni (total test count) if `bonferroni` requested — done; see Finding #1
 - documentation note on simplified score-permutation null — done; see Finding #2
 
-### Still required before implementing future API functions
-- **Finding #3**: Procrustes alignment inside `assess_stability(target = "loadings")` /
-  `bootstrap_loading_stability()` before any loading stability summaries are exposed
-- **Finding #4**: Association-warning language in `associate_components()` —
-  score estimation error not propagated to p-values; must be documented at the function level
-- **Finding #5**: Bias warning in survival split modes (`median`/`tertile`) of
-  `associate_components()` — label as descriptive or prefer continuous Cox
+### Completed in this session (2026-05-05 Session 31)
+- **Finding #3**: Procrustes alignment added in `assess_stability(target = "loadings")`
+- **Finding #4**: inferential warning implemented in `associate_components()`
+- **Finding #5**: survival split bias warning implemented in `associate_components()`
+- **Finding #6**: rank-threshold wording tightened as heuristic/non-FWER/non-FDR
+- **Finding #7**: variance-language guardrail added for future variance plots
+- **Finding #8**: jackstraw significance wording changed to association (non-causal)
 
-### Non-critical (address before any CRAN submission or publication use)
-- **Finding #6**: Rank-selection threshold language — document as heuristic, not FWER/FDR
-- **Finding #7**: Variance explained language — distinguish joint vs block-individual
-- **Finding #8**: Jackstraw significance language — prefer "associated with" over "driving"
+### Follow-up still pending
+- extend the same warning semantics to future compatibility wrappers/aliases
+  once those APIs are added (for example, survival-specific convenience wrappers)

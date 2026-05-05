@@ -3,12 +3,15 @@
 # Public API:
 #   extract_components()   — extract tidy data / diagnostic payload from Rajive output
 #   plot_components()      — unified plotting entry point
+#   associate_components() — association between component scores and metadata
+#   assess_stability()     — bootstrap stability assessment (joint rank / loadings)
 #
 # Internal helpers (not exported):
 #   .extract_rank_diagnostics()
 #   .plot_rank_threshold()
 #   .plot_bound_distributions()
 #   .plot_ajive_diagnostic()
+#   .procrustes_align()    — orthogonal Procrustes alignment for loading stability
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +111,10 @@ extract_components <- function(ajive_output,
 #' \describe{
 #'   \item{\code{"rank_threshold"}}{Squared observed singular values with
 #'     Wedin and/or random-direction cutoff lines, colored by joint/nonjoint
-#'     classification.}
+#'     classification.  The active threshold is the
+#'     \code{max(wedin, random_direction)} rule — a practical heuristic that
+#'     is conservative in practice but does not carry formal FWER or FDR
+#'     control for rank selection (see \code{StatisticalAudits.md}, Finding 6).}
 #'   \item{\code{"bound_distributions"}}{Histogram(s) of Wedin and/or
 #'     random-direction bound samples with percentile cutoff lines.}
 #'   \item{\code{"ajive_diagnostic"}}{Full composite panel combining the
@@ -135,6 +141,13 @@ extract_components <- function(ajive_output,
 #'
 #' @return A \code{ggplot} object (or a \pkg{patchwork} composite for
 #'   \code{plot_type = "ajive_diagnostic"}).
+#'
+#' @section Variance explained language:
+#'   When variance-explained plots are added in a future phase, outputs will
+#'   distinguish \emph{joint} variance explained from
+#'   \emph{block-specific individual} variance explained after joint signal
+#'   removal.  The two quantities are not interchangeable and should not be
+#'   described with generic PCA-style language (StatisticalAudits.md, Finding 7).
 #'
 #' @examples
 #' \donttest{
@@ -514,3 +527,452 @@ plot_components <- function(ajive_output = NULL,
 
   p_thresh / bottom
 }
+
+
+# ---------------------------------------------------------------------------
+# associate_components
+# ---------------------------------------------------------------------------
+
+#' Associate AJIVE component scores with sample metadata
+#'
+#' Tests for associations between estimated joint (or individual) component
+#' scores from a \code{\link{Rajive}} decomposition and sample-level metadata
+#' variables.
+#'
+#' @section Statistical warnings:
+#'
+#' \strong{Score estimation error (Finding 4):}
+#' Component scores are estimated quantities, not fixed design variables.
+#' Estimation error attenuates effect sizes and inflates Type-I error in naive
+#' tests. P-values returned by this function do \strong{not} propagate score
+#' estimation uncertainty.  Treat results as post-decomposition exploratory
+#' associations, not exact fixed-design inference.
+#'
+#' \strong{Survival split bias (Finding 5):}
+#' When \code{mode = "survival"} and a score-split (\code{split = "median"}
+#' or \code{split = "tertile"}) is used, the resulting log-rank or Cox p-value
+#' is data-adaptive and may be anti-conservative.  Prefer
+#' \code{split = "none"} (continuous-score Cox model) for primary inference.
+#' Split-based results should be treated as descriptive summaries only.
+#'
+#' @param ajive_output An object of class \code{"rajive"} (output of
+#'   \code{\link{Rajive}}).
+#' @param metadata A \code{data.frame} of sample-level metadata; rows must
+#'   correspond in order to the samples in \code{ajive_output}.
+#' @param scores Optional precomputed scores matrix (samples x components).
+#'   When \code{NULL} (default), joint scores are extracted from
+#'   \code{ajive_output}.
+#' @param mode Character scalar.  One of \code{"continuous"},
+#'   \code{"categorical"}, \code{"survival"}, or \code{"batch"}.
+#' @param variable Character scalar.  Name of a single column in
+#'   \code{metadata} to test.
+#' @param variables Character vector.  Names of multiple columns to test.
+#'   Ignored when \code{variable} is supplied.
+#' @param method Character scalar.  Test method; defaults are Pearson
+#'   correlation (\code{"pearson"}) for continuous, Kruskal-Wallis
+#'   (\code{"kruskal"}) for categorical, and log-rank (\code{"logrank"})
+#'   for survival.
+#' @param adjust Character scalar.  P-value adjustment method passed to
+#'   \code{\link[stats]{p.adjust}}.  Default \code{"BH"}.
+#' @param time_col Character scalar.  Name of the time column in
+#'   \code{metadata} (required for \code{mode = "survival"}).
+#' @param status_col Character scalar.  Name of the event-status column in
+#'   \code{metadata} (required for \code{mode = "survival"}).
+#' @param split Character scalar.  Score-split strategy for survival analysis.
+#'   One of \code{"none"} (continuous Cox, recommended for primary inference),
+#'   \code{"median"}, or \code{"tertile"}.
+#' @param type Character scalar.  Source of scores: \code{"joint"} (default)
+#'   or \code{"individual"}.
+#' @param block Integer or \code{NULL}.  Block index for individual scores.
+#' @param component Integer or \code{NULL}.  Restrict analysis to a single
+#'   component index.
+#' @param ... Reserved for future arguments.
+#'
+#' @return A \code{data.frame} with one row per variable x component
+#'   combination and columns \code{variable}, \code{component}, \code{stat},
+#'   \code{p_value}, \code{p_adj}, and \code{method}.
+#'
+#' @examples
+#' \donttest{
+#' n   <- 40; pks <- c(30, 20)
+#' Y   <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(4, 3),
+#'                       n = n, pks = pks, dist.type = 1)
+#' fit <- Rajive(Y$sim_data, c(4, 3))
+#' meta <- data.frame(group = sample(c("A", "B"), n, replace = TRUE))
+#' res  <- associate_components(fit, meta, variable = "group",
+#'                              mode = "categorical")
+#' }
+#'
+#' @export
+associate_components <- function(ajive_output,
+                                 metadata,
+                                 scores      = NULL,
+                                 mode        = c("continuous", "categorical",
+                                                  "survival", "batch"),
+                                 variable    = NULL,
+                                 variables   = NULL,
+                                 method      = NULL,
+                                 adjust      = "BH",
+                                 time_col    = NULL,
+                                 status_col  = NULL,
+                                 split       = c("none", "median", "tertile"),
+                                 type        = c("joint", "individual"),
+                                 block       = NULL,
+                                 component   = NULL,
+                                 ...) {
+
+  mode  <- match.arg(mode)
+  type  <- match.arg(type)
+  split <- match.arg(split)
+
+  # --- input validation ---
+  if (!inherits(ajive_output, "rajive"))
+    stop("`ajive_output` must be an object of class \"rajive\".",
+         call. = FALSE)
+  if (!is.data.frame(metadata))
+    stop("`metadata` must be a data.frame.", call. = FALSE)
+
+  # resolve variable list
+  vars <- if (!is.null(variable)) variable else variables
+  if (is.null(vars) || length(vars) == 0L)
+    stop("Supply at least one variable name via `variable` or `variables`.",
+         call. = FALSE)
+  missing_vars <- setdiff(vars, names(metadata))
+  if (length(missing_vars) > 0L)
+    stop("Variables not found in `metadata`: ",
+         paste(missing_vars, collapse = ", "), call. = FALSE)
+
+  # --- mandatory inferential warning (#4) ---
+  message(
+    "[associate_components] NOTE: Component scores are estimated quantities. ",
+    "Score estimation error is NOT propagated into the returned p-values. ",
+    "Treat results as post-decomposition exploratory associations, not exact ",
+    "fixed-design inference (StatisticalAudits.md, Finding 4)."
+  )
+
+  # --- survival split bias warning (#5) ---
+  if (mode == "survival" && split != "none") {
+    message(
+      "[associate_components] WARNING: Split-based survival inference ",
+      "(split = \"", split, "\") is data-adaptive and may be anti-conservative. ",
+      "Use split = \"none\" (continuous-score Cox model) for primary inference. ",
+      "Split-based results should be labeled as descriptive summaries ",
+      "(StatisticalAudits.md, Finding 5)."
+    )
+  }
+
+  # --- extract scores ---
+  if (is.null(scores)) {
+    if (type == "joint") {
+      sc <- ajive_output$joint_scores
+      if (is.null(sc))
+        stop("Joint scores not found in `ajive_output`. ",
+             "Was `Rajive()` run with a positive joint rank?", call. = FALSE)
+    } else {
+      if (is.null(block))
+        stop("`block` must be specified when `type = \"individual\"`.",
+             call. = FALSE)
+      sc <- ajive_output$block_decomps[[3L * (as.integer(block) - 1L) + 1L]]$u
+      if (is.null(sc))
+        stop("Individual scores not found for block ", block, ".", call. = FALSE)
+    }
+    scores <- sc
+  }
+
+  if (is.vector(scores))
+    scores <- matrix(scores, ncol = 1L)
+
+  n_comp <- ncol(scores)
+  comps  <- if (!is.null(component)) component else seq_len(n_comp)
+
+  if (nrow(scores) != nrow(metadata))
+    stop("`metadata` must have the same number of rows as samples in scores (",
+         nrow(scores), ").", call. = FALSE)
+
+  # --- run per variable x component ---
+  rows <- vector("list", length(vars) * length(comps))
+  idx  <- 1L
+
+  for (v in vars) {
+    y <- metadata[[v]]
+    for (j in comps) {
+      x <- scores[, j]
+      res_j <- .associate_one(x, y, mode, method, time_col, status_col,
+                              split, metadata)
+      rows[[idx]] <- data.frame(
+        variable  = v,
+        component = j,
+        stat      = res_j$stat,
+        p_value   = res_j$p_value,
+        method    = res_j$method,
+        stringsAsFactors = FALSE
+      )
+      idx <- idx + 1L
+    }
+  }
+
+  out <- do.call(rbind, rows)
+  out$p_adj <- stats::p.adjust(out$p_value, method = adjust)
+  out[, c("variable", "component", "stat", "p_value", "p_adj", "method")]
+}
+
+
+# Internal: .associate_one — single variable x component test dispatch
+.associate_one <- function(scores_j, y, mode, method, time_col, status_col,
+                           split, metadata) {
+  switch(mode,
+
+    continuous = {
+      meth <- if (!is.null(method)) method else "pearson"
+      ct   <- suppressWarnings(
+        stats::cor.test(scores_j, as.numeric(y), method = meth)
+      )
+      list(stat = unname(ct$estimate), p_value = ct$p.value, method = meth)
+    },
+
+    categorical = {
+      meth <- if (!is.null(method)) method else "kruskal"
+      kt   <- stats::kruskal.test(scores_j ~ factor(y))
+      list(stat = unname(kt$statistic), p_value = kt$p.value, method = meth)
+    },
+
+    survival = {
+      if (is.null(time_col) || is.null(status_col))
+        stop("`time_col` and `status_col` must be supplied for ",
+             "mode = \"survival\".", call. = FALSE)
+      # Continuous Cox (primary; split applied below if requested)
+      t_vec <- metadata[[time_col]]
+      s_vec <- metadata[[status_col]]
+      if (!requireNamespace("survival", quietly = TRUE))
+        stop("Package 'survival' is required for mode = \"survival\".",
+             call. = FALSE)
+      surv_obj <- survival::Surv(as.numeric(t_vec), as.logical(s_vec))
+      if (split == "none") {
+        fit <- survival::coxph(surv_obj ~ scores_j)
+        sm  <- summary(fit)
+        list(stat = sm$coefficients[1L, "z"],
+             p_value = sm$coefficients[1L, "Pr(>|z|)"],
+             method = "cox_continuous")
+      } else {
+        grp <- if (split == "median") {
+          ifelse(scores_j >= stats::median(scores_j), "high", "low")
+        } else {
+          qs  <- stats::quantile(scores_j, c(1/3, 2/3))
+          cut(scores_j, breaks = c(-Inf, qs, Inf),
+              labels = c("low", "mid", "high"))
+        }
+        lr <- survival::survdiff(surv_obj ~ grp)
+        p  <- 1 - stats::pchisq(lr$chisq, df = length(unique(grp)) - 1L)
+        list(stat = lr$chisq, p_value = p,
+             method = paste0("logrank_", split))
+      }
+    },
+
+    batch = {
+      meth <- if (!is.null(method)) method else "kruskal"
+      kt   <- stats::kruskal.test(scores_j ~ factor(y))
+      list(stat = unname(kt$statistic), p_value = kt$p.value, method = meth)
+    }
+  )
+}
+
+
+# ---------------------------------------------------------------------------
+# assess_stability
+# ---------------------------------------------------------------------------
+
+#' Assess stability of AJIVE decomposition via bootstrap resampling
+#'
+#' Evaluates the stability of the estimated joint rank or block loadings via
+#' bootstrap resampling of the sample dimension.
+#'
+#' @section Procrustes alignment for loading stability (Finding 3):
+#' When \code{target = "loadings"}, bootstrap loading matrices are aligned to
+#' the reference (full-data) loading matrix using orthogonal Procrustes
+#' rotation before any variability summary is computed.  Raw bootstrap loading
+#' variation is dominated by rotational indeterminacy and is not interpretable
+#' without alignment.  All returned stability summaries are computed
+#' \strong{after} Procrustes alignment (StatisticalAudits.md, Finding 3).
+#'
+#' @param ajive_output An object of class \code{"rajive"} (output of
+#'   \code{\link{Rajive}}).  Required for \code{target = "loadings"} and
+#'   \code{target = "components"}.
+#' @param blocks List of data matrices (same list passed to
+#'   \code{\link{Rajive}}).
+#' @param initial_signal_ranks Integer vector of initial signal ranks for each
+#'   block.
+#' @param target Character scalar.  One of \code{"joint_rank"},
+#'   \code{"loadings"}, or \code{"components"}.
+#' @param method Character scalar.  \code{"bootstrap"} (default) or
+#'   \code{"permutation"}.
+#' @param B Positive integer.  Number of bootstrap replicates.  Default 100.
+#' @param n_perm Positive integer.  Number of permutations (only used when
+#'   \code{method = "permutation"}).  Default 100.
+#' @param sample_frac Numeric in (0, 1].  Fraction of samples to draw in each
+#'   bootstrap replicate.  Default 0.8.
+#' @param num_cores Positive integer.  Number of cores for parallel execution.
+#'   Default 1 (no parallelism).
+#' @param ... Reserved for future arguments.
+#'
+#' @return A named list whose structure depends on \code{target}:
+#' \describe{
+#'   \item{\code{"joint_rank"}}{A list with fields \code{rank_distribution}
+#'     (integer vector of length \code{B}), \code{rank_table} (frequency
+#'     table), and \code{observed_rank} (integer).}
+#'   \item{\code{"loadings"}}{A list with one element per block.  Each element
+#'     contains \code{mean_loading} (aligned mean loading matrix),
+#'     \code{sd_loading} (element-wise standard deviation after alignment), and
+#'     \code{cos_similarity} (vector of mean cosine similarities per
+#'     component).  All summaries are computed after orthogonal Procrustes
+#'     alignment.}
+#' }
+#'
+#' @examples
+#' \donttest{
+#' n   <- 40; pks <- c(30, 20)
+#' Y   <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(4, 3),
+#'                       n = n, pks = pks, dist.type = 1)
+#' fit <- Rajive(Y$sim_data, c(4, 3))
+#' stab <- assess_stability(fit, Y$sim_data, c(4, 3),
+#'                          target = "joint_rank", B = 50)
+#' stab$rank_table
+#' }
+#'
+#' @export
+assess_stability <- function(ajive_output = NULL,
+                             blocks,
+                             initial_signal_ranks,
+                             target      = c("joint_rank", "loadings",
+                                              "components"),
+                             method      = c("bootstrap", "permutation"),
+                             B           = 100L,
+                             n_perm      = 100L,
+                             sample_frac = 0.8,
+                             num_cores   = 1L,
+                             ...) {
+
+  target <- match.arg(target)
+  method <- match.arg(method)
+
+  if (!is.list(blocks) || length(blocks) == 0L)
+    stop("`blocks` must be a non-empty list of matrices.", call. = FALSE)
+  if (length(initial_signal_ranks) != length(blocks))
+    stop("`initial_signal_ranks` must have the same length as `blocks`.",
+         call. = FALSE)
+  B <- as.integer(B)
+  if (B < 2L)
+    stop("`B` must be at least 2.", call. = FALSE)
+  if (sample_frac <= 0 || sample_frac > 1)
+    stop("`sample_frac` must be in (0, 1].", call. = FALSE)
+
+  n_samples <- nrow(blocks[[1L]])
+
+  switch(target,
+
+    joint_rank = {
+      rank_draws <- integer(B)
+      for (b in seq_len(B)) {
+        idx    <- sample.int(n_samples, size = max(2L, floor(sample_frac * n_samples)),
+                             replace = TRUE)
+        b_list <- lapply(blocks, function(X) X[idx, , drop = FALSE])
+        fit_b  <- tryCatch(
+          Rajive(b_list, initial_signal_ranks),
+          error = function(e) NULL
+        )
+        rank_draws[b] <- if (is.null(fit_b)) NA_integer_ else fit_b$joint_rank
+      }
+      list(
+        rank_distribution = rank_draws,
+        rank_table        = table(rank_draws, useNA = "ifany"),
+        observed_rank     = if (!is.null(ajive_output)) ajive_output$joint_rank else NA_integer_
+      )
+    },
+
+    loadings = {
+      if (is.null(ajive_output))
+        stop("`ajive_output` must be supplied for target = \"loadings\".",
+             call. = FALSE)
+      if (!inherits(ajive_output, "rajive"))
+        stop("`ajive_output` must be of class \"rajive\".", call. = FALSE)
+
+      K          <- length(blocks)
+      joint_rank <- ajive_output$joint_rank
+      if (joint_rank == 0L)
+        stop("Cannot assess loading stability when joint_rank = 0.", call. = FALSE)
+
+      # Reference loadings: list of K matrices (features x joint_rank)
+      # block_decomps layout: individual at 3k-2, joint at 3k-1, noise at 3k
+      # $v = features x rank (loadings); $u = samples x rank (scores)
+      ref_loadings <- lapply(seq_len(K), function(k) {
+        ajive_output$block_decomps[[3L * (k - 1L) + 2L]]$v
+      })
+
+      # Bootstrap loading draws: list-of-K, each element is an array
+      # (features x joint_rank x B)
+      boot_arrays <- lapply(seq_len(K), function(k) {
+        array(NA_real_,
+              dim = c(nrow(ref_loadings[[k]]), joint_rank, B))
+      })
+
+      for (b in seq_len(B)) {
+        idx    <- sample.int(n_samples, size = max(2L, floor(sample_frac * n_samples)),
+                             replace = TRUE)
+        b_list <- lapply(blocks, function(X) X[idx, , drop = FALSE])
+        fit_b  <- tryCatch(
+          Rajive(b_list, initial_signal_ranks),
+          error = function(e) NULL
+        )
+        if (is.null(fit_b) || fit_b$joint_rank < joint_rank) next
+
+        for (k in seq_len(K)) {
+          L_b <- fit_b$block_decomps[[3L * (k - 1L) + 2L]]$v
+          # Procrustes-align L_b to reference (Finding #3)
+          Q         <- .procrustes_align(ref_loadings[[k]], L_b)
+          L_aligned <- L_b %*% Q
+          boot_arrays[[k]][, , b] <- L_aligned
+        }
+      }
+
+      # Summarise across bootstrap replicates
+      result <- vector("list", K)
+      names(result) <- names(blocks)
+      for (k in seq_len(K)) {
+        arr         <- boot_arrays[[k]]
+        mean_load   <- apply(arr, c(1L, 2L), mean, na.rm = TRUE)
+        sd_load     <- apply(arr, c(1L, 2L), stats::sd, na.rm = TRUE)
+        ref         <- ref_loadings[[k]]
+        cos_sim     <- vapply(seq_len(joint_rank), function(j) {
+          ref_j  <- ref[, j]
+          mn_j   <- mean_load[, j]
+          sum(ref_j * mn_j) /
+            (sqrt(sum(ref_j^2)) * sqrt(sum(mn_j^2)) + .Machine$double.eps)
+        }, numeric(1L))
+        result[[k]] <- list(
+          mean_loading  = mean_load,
+          sd_loading    = sd_load,
+          cos_similarity = cos_sim
+        )
+      }
+      result
+    },
+
+    components = {
+      stop("target = \"components\" is not yet implemented.", call. = FALSE)
+    }
+  )
+}
+
+
+# ---------------------------------------------------------------------------
+# Internal: orthogonal Procrustes alignment
+# ---------------------------------------------------------------------------
+
+# .procrustes_align(A, B) returns an orthogonal rotation matrix Q such that
+# B %*% Q is as close as possible to A in Frobenius norm.
+# Solution: Q = V %*% t(U) where svd(t(A) %*% B) = U D V'.
+.procrustes_align <- function(A, B) {
+  P     <- crossprod(A, B)          # t(A) %*% B
+  sv    <- svd(P)
+  sv$v %*% t(sv$u)
+}
+

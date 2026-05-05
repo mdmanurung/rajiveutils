@@ -149,9 +149,9 @@ generate_null_f_stats <- function(X_t, joint_comp_scores, n_null) {
 
 #' Jackstraw significance testing for RaJIVE joint loadings
 #'
-#' Applies a permutation-based jackstraw test to determine which features in
-#' each data block have statistically significantly nonzero joint loadings
-#' from a \code{\link{Rajive}} decomposition.
+#' Applies a permutation-based jackstraw test to identify which features in
+#' each data block are statistically significantly \emph{associated with} the
+#' estimated joint component scores from a \code{\link{Rajive}} decomposition.
 #'
 #' For each data block \eqn{k} and each joint component \eqn{j}, the observed
 #' F-statistic for the regression \emph{feature ~ joint_score_j + 1} is
@@ -162,6 +162,12 @@ generate_null_f_stats <- function(X_t, joint_comp_scores, n_null) {
 #' the resulting p-values should be interpreted as an approximate
 #' jackstraw-style significance measure. Empirical p-values are computed and
 #' optionally corrected for multiple testing.
+#'
+#' \strong{Interpretation note:} A significant result means the feature is
+#' \emph{associated with} the estimated joint component score.  It does not
+#' imply that the feature is a causal driver or that the association is with
+#' the true latent score rather than its estimate (StatisticalAudits.md,
+#' Finding 8).
 #'
 #' @param ajive_output List returned by \code{\link{Rajive}}.
 #' @param blocks List of data matrices (same list passed to

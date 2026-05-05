@@ -40,7 +40,10 @@ plot types are supported:
 \describe{
   \item{\code{"rank_threshold"}}{Squared observed singular values with
     Wedin and/or random-direction cutoff lines, colored by joint/nonjoint
-    classification.}
+    classification.  The active threshold is the
+    \code{max(wedin, random_direction)} rule — a practical heuristic that
+    is conservative in practice but does not carry formal FWER or FDR
+    control for rank selection (see \code{StatisticalAudits.md}, Finding 6).}
   \item{\code{"bound_distributions"}}{Histogram(s) of Wedin and/or
     random-direction bound samples with percentile cutoff lines.}
   \item{\code{"ajive_diagnostic"}}{Full composite panel combining the
@@ -48,6 +51,15 @@ plot types are supported:
     Requires the \pkg{patchwork} package.}
 }
 }
+\section{Variance explained language}{
+
+  When variance-explained plots are added in a future phase, outputs will
+  distinguish \emph{joint} variance explained from
+  \emph{block-specific individual} variance explained after joint signal
+  removal.  The two quantities are not interchangeable and should not be
+  described with generic PCA-style language (StatisticalAudits.md, Finding 7).
+}
+
 \examples{
 \donttest{
 n   <- 40; pks <- c(30, 20)

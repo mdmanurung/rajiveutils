@@ -55,9 +55,9 @@ An object of class \code{"jackstraw_rajive"}: a named list with one
   \code{joint_rank}, and \code{n_blocks}.
 }
 \description{
-Applies a permutation-based jackstraw test to determine which features in
-each data block have statistically significantly nonzero joint loadings
-from a \code{\link{Rajive}} decomposition.
+Applies a permutation-based jackstraw test to identify which features in
+each data block are statistically significantly \emph{associated with} the
+estimated joint component scores from a \code{\link{Rajive}} decomposition.
 }
 \details{
 For each data block \eqn{k} and each joint component \eqn{j}, the observed
@@ -69,6 +69,12 @@ jackstraw re-estimation of the latent scores after masking each feature, so
 the resulting p-values should be interpreted as an approximate
 jackstraw-style significance measure. Empirical p-values are computed and
 optionally corrected for multiple testing.
+
+\strong{Interpretation note:} A significant result means the feature is
+\emph{associated with} the estimated joint component score.  It does not
+imply that the feature is a causal driver or that the association is with
+the true latent score rather than its estimate (StatisticalAudits.md,
+Finding 8).
 }
 \examples{
 \donttest{
