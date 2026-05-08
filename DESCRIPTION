@@ -5,7 +5,7 @@ Authors@R: c(
     person(given = "Mikhael",
            family = "Manurung",
            role = c("aut", "cre"),
-           email = "m.d.manuurng@lumc.nl"))
+           email = "m.d.manurung@lumc.nl"))
 Description: Blazing fast re-implementation of the RAJIVE algorithm for joint and individual variation explained in multi-view data. This package provides a user-friendly interface to perform RAJIVE analysis, along with tools for visualization and interpretation of results.
 License: MIT + file LICENSE
 Encoding: UTF-8
