@@ -31,6 +31,15 @@ computational bottleneck.  The original
 [RaJIVE](https://github.com/ericaponzi/RaJIVE) package performs all SVD
 computation in pure R.
 
+> **Note:** The benchmark code in this vignette requires the `RaJIVE`
+> package (available on GitHub) and generates computationally heavy
+> results that are cached as `.rds` files.  All code chunks below are
+> shown for reference but are **not evaluated** when building the
+> pkgdown site.  To reproduce the results locally, install `RaJIVE`
+> with `remotes::install_github("ericaponzi/RaJIVE")`, set
+> `run_heavy <- TRUE` in the setup chunk, and knit the vignette
+> interactively.
+
 This vignette quantifies the practical speedup across three dimensions:
 
 | Benchmark | Varies | Fixed |
@@ -61,7 +70,7 @@ vignettes rather than timing-focused benchmarks.
 
 Install `RaJIVE` from GitHub if not yet available:
 
-```{r}
+```{r, eval=FALSE}
 if (!requireNamespace("RaJIVE", quietly = TRUE))
   remotes::install_github("ericaponzi/RaJIVE")
 ```
@@ -72,7 +81,7 @@ if (!requireNamespace("RaJIVE", quietly = TRUE))
 Load packages using `::` throughout to avoid namespace conflicts (both
 packages export `Rajive()`):
 
-```{r}
+```{r, eval=FALSE}
 library(rajiveplus)
 library(microbenchmark)
 library(bench)
@@ -86,7 +95,7 @@ library(ggplot2)
 Pre-register **one** doParallel cluster of 2 workers before any benchmark
 call to avoid paying cluster spin-up cost inside every `RaJIVE::Rajive()`:
 
-```{r}
+```{r, eval=FALSE}
 doParallel::registerDoParallel(2L)
 ```
 
@@ -95,7 +104,7 @@ doParallel::registerDoParallel(2L)
 
 Simulate the benchmark dataset (K=2 blocks, n=100 samples, p=500 features):
 
-```{r}
+```{r, eval=FALSE}
 set.seed(42)
 Y      <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 5),
                          n = 100, pks = c(500, 500))
@@ -111,7 +120,7 @@ blocks <- Y$sim_data
 
 A quick `system.time()` gives an intuitive baseline before formal benchmarking:
 
-```{r}
+```{r, eval=FALSE}
 t_ru <- system.time(
   rajiveplus::Rajive(blocks, c(5, 5), joint_rank = 2L, full = FALSE, num_cores = 2L)
 )
@@ -132,7 +141,7 @@ cat("Speedup:    ", round(t_rj["elapsed"] / t_ru["elapsed"], 1), "x\n")
 
 Five repeated runs for a robust but tractable timing distribution:
 
-```{r}
+```{r, eval=FALSE}
 bm_mb <- microbenchmark(
   rajiveplus = rajiveplus::Rajive(blocks, c(5, 5),
                                    joint_rank = 2L, full = FALSE, num_cores = 2L),
@@ -142,12 +151,12 @@ bm_mb <- microbenchmark(
 saveRDS(bm_mb, file.path(data_dir, "bench_results.rds"))
 ```
 
-```{r}
+```{r, eval=FALSE}
 bm_mb <- readRDS(file.path(data_dir, "bench_results.rds"))
 print(bm_mb, unit = "s", order = "median")
 ```
 
-```{r}
+```{r, eval=FALSE}
 autoplot(bm_mb) +
   labs(title = "microbenchmark: rajiveplus vs RaJIVE",
        subtitle = "K=2, n=100, p=500, joint_rank=2, num_cores=2, 5 reps",
@@ -167,7 +176,7 @@ autoplot(bm_mb) +
 RcppArmadillo is invisible to it (see the **Memory** section for fair RSS
 comparison via `peakRAM`):
 
-```{r}
+```{r, eval=FALSE}
 bm_bench <- bench::mark(
   rajiveplus = rajiveplus::Rajive(blocks, c(5, 5),
                                    joint_rank = 2L, full = FALSE, num_cores = 2L),
@@ -179,7 +188,7 @@ bm_bench <- bench::mark(
 saveRDS(bm_bench, file.path(data_dir, "bench_results_bench.rds"))
 ```
 
-```{r}
+```{r, eval=FALSE}
 bm_bench <- readRDS(file.path(data_dir, "bench_results_bench.rds"))
 knitr::kable(
   summary(bm_bench)[, c("expression", "min", "median", "mem_alloc", "n_itr")],
@@ -187,7 +196,7 @@ knitr::kable(
 )
 ```
 
-```{r}
+```{r, eval=FALSE}
 plot(bm_bench) +
   labs(title = "bench::mark: rajiveplus vs RaJIVE",
        subtitle = "R-heap allocations only; see peakRAM for total RSS") +
@@ -201,7 +210,7 @@ plot(bm_bench) +
 
 ## Scaling: Time vs Sample Size (n)
 
-```{r}
+```{r, eval=FALSE}
 ns <- c(50L, 100L, 200L)
 
 scaling_n_rows <- lapply(ns, function(n_i) {
@@ -217,7 +226,7 @@ scaling_n_rows <- lapply(ns, function(n_i) {
 scaling_n_df <- do.call(rbind, scaling_n_rows)
 ```
 
-```{r}
+```{r, eval=FALSE}
 ps <- c(100L, 500L, 1000L, 2000L)
 
 scaling_p_rows <- lapply(ps, function(p_i) {
@@ -236,13 +245,13 @@ saveRDS(list(vs_n = scaling_n_df, vs_p = scaling_p_df),
         file.path(data_dir, "scaling_results.rds"))
 ```
 
-```{r}
+```{r, eval=FALSE}
 scaling      <- readRDS(file.path(data_dir, "scaling_results.rds"))
 scaling_n_df <- scaling$vs_n
 scaling_p_df <- scaling$vs_p
 ```
 
-```{r}
+```{r, eval=FALSE}
 df_n_long <- reshape(scaling_n_df,
                      varying   = c("rajiveplus", "RaJIVE"),
                      v.names   = "elapsed",
@@ -259,7 +268,7 @@ ggplot(df_n_long, aes(x = n, y = elapsed, colour = package, group = package)) +
   theme_bw()
 ```
 
-```{r}
+```{r, eval=FALSE}
 df_p_long <- reshape(scaling_p_df,
                      varying   = c("rajiveplus", "RaJIVE"),
                      v.names   = "elapsed",
@@ -277,7 +286,7 @@ ggplot(df_p_long, aes(x = p, y = elapsed, colour = package, group = package)) +
   theme_bw()
 ```
 
-```{r}
+```{r, eval=FALSE}
 speedup_df <- data.frame(
   p       = scaling_p_df$p,
   speedup = round(scaling_p_df$RaJIVE / scaling_p_df$rajiveplus, 1)
@@ -298,7 +307,7 @@ knitr::kable(speedup_df,
 section measures elapsed time across core counts on a larger dataset
 (n=200, p=1000).
 
-```{r}
+```{r, eval=FALSE}
 set.seed(42)
 Y_par    <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(5, 5),
                            n = 200, pks = c(1000, 1000))
@@ -316,14 +325,14 @@ parallel_df$speedup <- parallel_df$elapsed[1] / parallel_df$elapsed
 saveRDS(parallel_df, file.path(data_dir, "parallel_results.rds"))
 ```
 
-```{r}
+```{r, eval=FALSE}
 parallel_df <- readRDS(file.path(data_dir, "parallel_results.rds"))
 knitr::kable(parallel_df, digits = 2,
              col.names = c("num_cores", "Elapsed (s)", "Speedup (x)"),
              caption   = "rajiveplus parallelism scaling (n=200, p=1000)")
 ```
 
-```{r}
+```{r, eval=FALSE}
 p1 <- ggplot(parallel_df, aes(x = num_cores, y = elapsed)) +
   geom_line(colour = "#2166ac", linewidth = 1) +
   geom_point(size = 2.5, colour = "#2166ac") +
@@ -359,7 +368,7 @@ RobustSVD in `rajiveplus` allocates on the C++ heap via Armadillo,
 invisible to R.  `peakRAM` captures the OS-level resident set size (RSS),
 giving a fair comparison of total memory footprint:
 
-```{r}
+```{r, eval=FALSE}
 mem_ru <- peakRAM::peakRAM(
   rajiveplus::Rajive(blocks, c(5, 5), joint_rank = 2L, full = FALSE, num_cores = 2L)
 )
@@ -374,7 +383,7 @@ peakram_df <- data.frame(
 saveRDS(peakram_df, file.path(data_dir, "peakram_single.rds"))
 ```
 
-```{r}
+```{r, eval=FALSE}
 peakram_df <- readRDS(file.path(data_dir, "peakram_single.rds"))
 knitr::kable(peakram_df,
              col.names = c("Package", "Peak RAM (MiB)", "Elapsed (s)"),
@@ -382,7 +391,7 @@ knitr::kable(peakram_df,
              caption   = "Peak RSS memory (peakRAM); includes C++ heap allocations")
 ```
 
-```{r}
+```{r, eval=FALSE}
 ggplot(peakram_df, aes(x = package, y = peak_ram_mb, fill = package)) +
   geom_col(width = 0.5) +
   scale_fill_manual(values = c(rajiveplus = "#2166ac", RaJIVE = "#d6604d")) +
@@ -405,6 +414,6 @@ ggplot(peakram_df, aes(x = package, y = peak_ram_mb, fill = package)) +
 
 ## Session Info
 
-```{r}
+```{r, eval=FALSE}
 sessionInfo()
 ```

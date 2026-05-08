@@ -27,6 +27,7 @@ articles:
       - jackstraw_scaling
       - cll_application
       - function_gallery
+      - microbiome_application
 
 reference:
   - title: "Core decomposition"

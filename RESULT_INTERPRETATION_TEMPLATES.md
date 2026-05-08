@@ -3,7 +3,22 @@
 Use this file after Phase 2 caches finish and before final packaging.
 Each section is intentionally fill-in-friendly for rapid reporting.
 
+> **pkgdown status (as of 2026-05-08):** The pkgdown site build has been
+> fixed. Two issues were resolved:
+> 1. `microbiome_application` vignette added to `_pkgdown.yml` articles list.
+> 2. All code chunks in `vignettes/benchmarking.Rmd` marked `eval=FALSE`
+>    to avoid CI failures from the external `RaJIVE` GitHub dependency and
+>    missing cached `.rds` files.  See the note in that vignette for how to
+>    reproduce benchmarks locally.
+
 ## 1) Benchmarking Summary Template
+
+> **Note:** The `benchmarking.Rmd` vignette is currently display-only
+> (`eval=FALSE` on all computation chunks).  To generate live results,
+> install `RaJIVE` (`remotes::install_github("ericaponzi/RaJIVE")`),
+> set `run_heavy <- TRUE`, knit interactively, and commit the resulting
+> `.rds` files under `vignettes/data/`.  Then revert chunks to `eval=TRUE`
+> and re-verify the pkgdown build.
 
 Run metadata:
 - Date:
@@ -124,6 +139,8 @@ Required pages:
 - docs/articles/benchmarking.html exists: [yes/no]
 - docs/articles/jackstraw_scaling.html exists: [yes/no]
 - docs/articles/cll_application.html exists: [yes/no]
+- docs/articles/function_gallery.html exists: [yes/no]
+- docs/articles/microbiome_application.html exists: [yes/no]
 
 Release recommendation:
 - [ready/not ready]

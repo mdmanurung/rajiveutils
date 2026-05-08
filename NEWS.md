@@ -1,5 +1,17 @@
 # rajiveplus (development)
 
+## Bug fixes
+
+- Fixed pkgdown site build failure: added `microbiome_application` vignette
+  to the `articles` section of `_pkgdown.yml` so pkgdown no longer aborts
+  with "vignette missing from index".
+- Fixed pkgdown site build failure: marked all code chunks in
+  `vignettes/benchmarking.Rmd` as `eval=FALSE` to prevent CI failures caused
+  by the external `RaJIVE` GitHub install and missing cached `.rds` result
+  files.  The benchmarking vignette now renders as a display-only reference;
+  see the note at the top of the vignette for instructions on reproducing
+  results locally.
+
 ## New vignettes
 
 - Added `vignettes/function_gallery.Rmd`: comprehensive API gallery covering
