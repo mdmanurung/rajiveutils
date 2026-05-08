@@ -7,12 +7,29 @@
 #'
 #' @param data Matrix. X matrix.
 #' @param nrank Integer. Rank of SVD decomposition
-#' @param svdinit List. The standard SVD.
+#' @param svdinit List or NULL. Optional classical SVD used for initialization.
+#'   If NULL (default), computed lazily after input validation.
 #' @importFrom stats median
 #' @return List with entries \code{d}, \code{u}, \code{v}.
 
-RobRSVD.all <- function(data, nrank = min(dim(data)), svdinit = svd(data))
+RobRSVD.all <- function(data, nrank = min(dim(data)), svdinit = NULL)
 {
+  if (!is.matrix(data)) {
+    cli::cli_abort(
+      c("`data` must be a numeric matrix."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+  if (!all(is.finite(data))) {
+    cli::cli_abort(
+      c("`data` contains non-finite values (NA/NaN/Inf)."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+  if (is.null(svdinit)) {
+    svdinit <- svd(data)
+  }
+
   RobRSVD_all_cpp(
     data   = data,
     nrank  = as.integer(nrank),

@@ -170,34 +170,25 @@ test_that("default correction is BH", {
 })
 
 # ---------------------------------------------------------------------------
-# 5. Constant feature receives p-value = 1 and is not significant
+# 5. Degenerate-feature guard (W-M10)
 # ---------------------------------------------------------------------------
 
-test_that("constant feature is not flagged as significant", {
+test_that("constant feature triggers degenerate-block error", {
   set.seed(42)
-  n  <- 40
-  d  <- 20
-  jr <- 1L
-
+  n  <- 60
+  pks <- c(20, 15)
+  # Use simulated data with a true joint structure so the identifiability
+  # filter does not drop every joint component (joint_rank must be > 0).
+  Y <- ajive.data.sim(K = 2, rankJ = 1, rankA = c(3, 3), n = n,
+                      pks = pks, dist.type = 1)
+  blocks <- Y$sim_data
   # Inject a constant column into block 1
-  X1    <- matrix(rnorm(n * d), n, d)
-  X1[, 1] <- 7.0          # constant feature
+  blocks[[1]][, 1] <- 7.0          # constant feature
 
-  X2    <- matrix(rnorm(n * 15), n, 15)
-
-  # Build a minimal ajive_output by hand using RaJIVE internals
-  # (run actual Rajive so we get a valid joint_scores)
-  blocks <- list(X1, X2)
-  ajive_out <- Rajive(blocks, initial_signal_ranks = c(3, 3))
-
-  js <- jackstraw_rajive(ajive_out, blocks,
-                         alpha = 0.05, n_null = 5, correction = "bonferroni")
-
-  # Feature 1 in block 1 is constant -> p-value == 1 -> not significant
-  for (j in seq_len(attr(js, "joint_rank"))) {
-    expect_equal(js[["block1"]][[j]]$p_values[1], 1)
-    expect_false(isTRUE(js[["block1"]][[j]]$significant[1]))
-  }
+  expect_error(
+    Rajive(blocks, initial_signal_ranks = c(3, 3)),
+    class = "rajiveplus_degenerate_block"
+  )
 })
 
 # ---------------------------------------------------------------------------
@@ -253,19 +244,21 @@ test_that("get_significant_vars raises error on bad block index", {
 
 test_that("variable names are attached to results when colnames are present", {
   set.seed(10)
-  n    <- 40
-  X1   <- matrix(rnorm(n * 10), n, 10)
-  X2   <- matrix(rnorm(n * 8),  n, 8)
-  colnames(X1) <- paste0("gene", 1:10)
-  colnames(X2) <- paste0("protein", 1:8)
+  n    <- 60
+  # Use data with a true joint signal so joint_rank > 0 after the
+  # (L2-norm) identifiability filter.
+  Y <- ajive.data.sim(K = 2, rankJ = 1, rankA = c(2, 2), n = n,
+                      pks = c(10, 8), dist.type = 1)
+  blocks <- Y$sim_data
+  colnames(blocks[[1]]) <- paste0("gene", seq_len(ncol(blocks[[1]])))
+  colnames(blocks[[2]]) <- paste0("protein", seq_len(ncol(blocks[[2]])))
 
-  blocks <- list(X1, X2)
   ajive_out <- Rajive(blocks, initial_signal_ranks = c(2, 2))
   js <- jackstraw_rajive(ajive_out, blocks, n_null = 5, correction = "none")
 
   comp1 <- js[["block1"]][["comp1"]]
-  expect_equal(names(comp1$f_obs),    colnames(X1))
-  expect_equal(names(comp1$p_values), colnames(X1))
+  expect_equal(names(comp1$f_obs),    colnames(blocks[[1]]))
+  expect_equal(names(comp1$p_values), colnames(blocks[[1]]))
 })
 
 # ---------------------------------------------------------------------------
@@ -359,4 +352,38 @@ test_that("jackstraw p-values are bounded away from 0 and well-spread", {
       expect_gt(length(unique(p)), 20L + 1L)
     }
   }
+})
+
+# ---------------------------------------------------------------------------
+# 12. W-M1: compute_empirical_pvalues uses >= (exact-tie correctness)
+# ---------------------------------------------------------------------------
+
+test_that("compute_empirical_pvalues uses >= not > (W-M1 regression)", {
+  # With pool = {1,1,2,2,3,3} and f_obs = {1, 2, 3}:
+  #   #{pool >= 1} = 6, #{pool >= 2} = 4, #{pool >= 3} = 2.
+  # Under the old findInterval(left.open=FALSE): #{pool > x} = {4, 2, 0},
+  # so p would be {5/7, 3/7, 1/7} -- wrong for tied values.
+  # After fix (left.open=TRUE): #{pool >= x} is correct.
+  f_obs  <- c(1, 2, 3)
+  f_null <- matrix(c(1, 1, 2, 2, 3, 3), nrow = 3)
+  # Pool = c(1,1,2,2,3,3), N = 6.
+  expected <- (1 + c(6, 4, 2)) / (1 + 6)
+  got <- rajiveplus:::compute_empirical_pvalues(f_obs, f_null)
+  expect_equal(got, expected)
+})
+
+test_that("compute_empirical_pvalues >= formula is identity for continuous pool", {
+  # For a continuous distribution, #{pool >= x} ≈ #{pool > x} for any given x,
+  # but we verify the formula gives consistent results with reference.
+  set.seed(99)
+  f_obs  <- c(1.5, 3.0, 5.0)
+  pool   <- sort(runif(999, 0, 10))
+  f_null <- matrix(pool, nrow = length(f_obs), ncol = length(pool) / length(f_obs),
+                   byrow = TRUE)
+  # Reference: brute-force #{pool_full >= f_obs[i]} / (1 + length(pool_full))
+  pool_full <- as.numeric(f_null)
+  expected <- (1 + vapply(f_obs, function(x) sum(pool_full >= x), integer(1L))) /
+              (1 + length(pool_full))
+  got <- rajiveplus:::compute_empirical_pvalues(f_obs, f_null)
+  expect_equal(got, expected, tolerance = 0)
 })

@@ -18,9 +18,19 @@ library(rajiveplus)
   Rmat <- data - Appold
   Rvec <- c(Rmat)
   mysigma <- median(abs(Rvec)) / 0.675
+  if (!is.finite(mysigma) || mysigma <= 0) {
+    mysigma <- sqrt(.Machine$double.eps)
+  }
   iter <- 1
   localdiff <- 9999
   while (localdiff > tol & iter < niter) {
+    # W-M7 reference parity: robust scale is updated every iteration.
+    Rvec <- c(Rmat)
+    mysigma <- median(abs(Rvec)) / 0.675
+    if (!is.finite(mysigma) || mysigma <= 0) {
+      mysigma <- sqrt(.Machine$double.eps)
+    }
+
     Wmat <- huberk / abs(Rmat / mysigma)
     Wmat[Wmat > 1] <- 1
     uterm1 <- diag(colSums(diag(c(vold^2)) %*% t(Wmat))) +
@@ -54,8 +64,14 @@ library(rajiveplus)
   Red <- d * u %*% t(v)
   Rm  <- min(min(dim(data)), nrank)
   for (i in 1:(Rm - 1)) {
-    data.svd1 <- .RobRSVD1_R(data - Red, sinit = svdinit$d[1],
-                              uinit = svdinit$u[, 1], vinit = svdinit$v[, 1])
+    # W-H3 reference parity: warm-start from leading SVD triplet
+    # of the current residual, not from original svdinit.
+    residual <- data - Red
+    svd_res  <- svd(residual)
+    data.svd1 <- .RobRSVD1_R(residual,
+                             sinit = svd_res$d[1],
+                             uinit = svd_res$u[, 1],
+                             vinit = svd_res$v[, 1])
     d   <- c(d, data.svd1$s)
     u   <- cbind(u, data.svd1$u)
     v   <- cbind(v, data.svd1$v)

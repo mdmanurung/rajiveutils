@@ -2,32 +2,33 @@
 % Please edit documentation in R/Rajive_helpfunctions.R
 \name{data_heatmap}
 \alias{data_heatmap}
-\title{Decomposition Heatmaps
-Plot data block heatmap}
+\title{Heatmap of a data matrix}
 \usage{
 data_heatmap(data, show_color_bar = TRUE, title = "", xlab = "", ylab = "")
 }
 \arguments{
-\item{data}{A numeric matrix.}
+\item{data}{Numeric matrix. Rows are observations, columns are variables.}
 
-\item{show_color_bar}{Logical. Show the colour bar legend. Default `TRUE`.}
+\item{show_color_bar}{Logical. Show the colour bar legend. Default
+\code{TRUE}.}
 
-\item{title}{Character. Plot title.}
+\item{title}{Character scalar. Plot title.}
 
-\item{xlab}{Character. x-axis label.}
+\item{xlab}{Character scalar. x-axis label.}
 
-\item{ylab}{Character. y-axis label.}
+\item{ylab}{Character scalar. y-axis label.}
 }
 \value{
 A \code{ggplot} object.
-
-Data heatmap
-
-Plots a heatmap of a data matrix using ggplot2 and reshape2.
-
-A `ggplot` object.
 }
 \description{
 Visualization helper for individual data blocks or decomposition components.
 Produces a raster heatmap using \pkg{ggplot2} with a rainbow colour scale.
+Used internally by \code{\link{decomposition_heatmaps_robustH}} and exposed
+for ad-hoc inspection of any numeric matrix.
+}
+\examples{
+M <- matrix(rnorm(100), 10, 10)
+data_heatmap(M, title = "random matrix")
+
 }

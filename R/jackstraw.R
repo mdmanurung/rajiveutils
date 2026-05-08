@@ -107,10 +107,11 @@ compute_empirical_pvalues <- function(f_obs, f_null) {
   if (N == 0L) return(rep(1, d))
 
   sorted_pool <- sort(pool)
-  # findInterval (default left.open=FALSE) returns #{j : sorted_pool[j] <= x}.
-  # For continuous F-statistics, exact ties between f_obs and pool are
-  # vanishingly rare, so #{pool >= x} = N - #{pool <= x}.
-  n_le <- findInterval(f_obs, sorted_pool)
+  # W-M1: use left.open = TRUE so findInterval returns #{j : sorted_pool[j] < x},
+  # giving n_ge = N - n_le = #{pool >= f_obs}.  The Phipson-Smyth formula
+  # requires >=; with the default left.open=FALSE we would compute > instead,
+  # under-counting exact ties and producing p-values that are too small.
+  n_le <- findInterval(f_obs, sorted_pool, left.open = TRUE)
   n_ge <- N - n_le
 
   p_vals <- (1 + n_ge) / (1 + N)
@@ -137,7 +138,6 @@ compute_empirical_pvalues <- function(f_obs, f_null) {
 #' @keywords internal
 generate_null_f_stats <- function(X_t, joint_comp_scores, n_null) {
   d <- nrow(X_t)
-  n <- ncol(X_t)
 
   # Pre-sample feature indices for all (d * n_null) draws at once
   sampled_idx <- matrix(

@@ -221,6 +221,10 @@ test_that("Rajive: individual rank non-negative for all blocks", {
 # ===========================================================================
 
 test_that("Rajive: num_cores=1 and num_cores=2 give identical results (fixed joint_rank)", {
+  old_kind <- RNGkind()
+  on.exit(do.call(RNGkind, as.list(old_kind)), add = TRUE)
+  RNGkind("L'Ecuyer-CMRG")
+
   d   <- make_blocks(K = 2, n = 30, pks = c(20, 15),
                      rankJ = 2, rankA = c(4, 3), seed = 8001L)
   r1  <- Rajive(d$blocks, d$initial_signal_ranks,

@@ -1314,7 +1314,27 @@ associate_components <- function(ajive_output,
       if (!requireNamespace("survival", quietly = TRUE))
         stop("Package 'survival' is required for mode = \"survival\".",
              call. = FALSE)
-      surv_obj <- survival::Surv(as.numeric(t_vec), as.logical(s_vec))
+      s_norm <- if (is.logical(s_vec)) {
+        s_vec
+      } else if (is.numeric(s_vec)) {
+        if (!all(s_vec %in% c(0, 1, NA))) {
+          cli::cli_abort(
+            c("`status_col` numeric input must contain only 0/1 (or NA).",
+              "x" = "Found values outside {0,1}."),
+            class = "rajiveplus_invalid_input"
+          )
+        }
+        as.logical(s_vec)
+      } else if (is.factor(s_vec) && nlevels(s_vec) == 2L) {
+        as.integer(s_vec) == 2L
+      } else {
+        cli::cli_abort(
+          c("`status_col` must be 0/1 numeric, logical, or a 2-level factor.",
+            "x" = "Got class {.cls {class(s_vec)}}."),
+          class = "rajiveplus_invalid_input"
+        )
+      }
+      surv_obj <- survival::Surv(as.numeric(t_vec), s_norm)
       if (split == "none") {
         fit <- survival::coxph(surv_obj ~ scores_j)
         sm  <- summary(fit)
@@ -1549,8 +1569,18 @@ assess_stability <- function(ajive_output = NULL,
         bs <- fit_b$joint_scores
         n_use <- min(ncol(bs), n_comp)
         if (n_use < 1L) next
+        # Align bootstrap components to the reference subspace to resolve
+        # sign and order ambiguity before per-component correlations.
+        ref_sub <- ref[idx, seq_len(n_use), drop = FALSE]
+        bs_sub  <- bs[, seq_len(n_use), drop = FALSE]
+        Q <- .procrustes_align(ref_sub, bs_sub)
+        bs_aligned <- bs_sub %*% Q
         for (j in seq_len(n_use)) {
-          cor_mat[b, j] <- suppressWarnings(stats::cor(ref[idx, j], bs[, j], use = "pairwise.complete.obs"))
+          # Keep absolute correlation for residual sign indeterminacy.
+          cor_mat[b, j] <- suppressWarnings(
+            abs(stats::cor(ref_sub[, j], bs_aligned[, j],
+                           use = "pairwise.complete.obs"))
+          )
         }
       }
 

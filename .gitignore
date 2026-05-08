@@ -30,3 +30,6 @@ PLANS.md
 PROGRESS.md
 AGENTS.md
 *.rds
+*.github
+*.claude
+*.vscode

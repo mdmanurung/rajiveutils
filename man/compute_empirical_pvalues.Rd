@@ -12,11 +12,28 @@ compute_empirical_pvalues(f_obs, f_null)
 \item{f_null}{\code{d x n_null} numeric matrix of null F-statistics.}
 }
 \value{
-length-\code{d} numeric vector of empirical p-values in [0, 1].
+length-\code{d} numeric vector of empirical p-values in (0, 1].
 }
 \description{
-For feature \code{i}, the p-value is the proportion of its \code{n_null}
-null F-statistics that exceed the observed value.  \code{NA} observed
-statistics (constant features) receive p-value = 1.
+For feature \code{i}, the p-value is computed using the Phipson--Smyth
+(2010) formula \eqn{p_i = (1 + \#\{N_j \ge f_i\}) / (1 + N)}, where the
+null pool \eqn{\{N_j\}} is the union of \emph{all} non-missing entries of
+\code{f_null} across all features. This pooling is justified by the
+jackstraw assumption that, under the null, F-statistics are exchangeable
+across features (Chung & Storey 2015) and avoids two failure modes of a
+per-feature empirical CDF:
+\enumerate{
+  \item discreteness when \code{n_null} is small (per-feature p-values
+    can only take \code{n_null + 1} distinct values, making BH/Bonferroni
+    adjustment uninformative);
+  \item p-values exactly equal to zero, which inflate the false-discovery
+    rate after multiple-testing adjustment.
+}
+\code{NA} observed statistics (constant features) receive p-value = 1.
+}
+\references{
+Phipson B, Smyth GK (2010). Permutation P-values should never be zero:
+calculating exact P-values when permutations are randomly drawn.
+\emph{Statistical Applications in Genetics and Molecular Biology}, 9(1).
 }
 \keyword{internal}

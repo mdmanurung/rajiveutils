@@ -1,5 +1,7 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
+#include <cmath>
+#include <limits>
 using namespace Rcpp;
 
 // ---------------------------------------------------------------------------
@@ -47,9 +49,12 @@ List RobRSVD1_cpp(
     // R: Rmat = data - Appold
     arma::mat Rmat = data - Appold;
 
-    // R: Rvec = c(Rmat);  mysigma = median(abs(Rvec)) / 0.675
+    // Initial robust scale estimate; updated every iteration below.
     arma::vec Rvec    = arma::vectorise(Rmat);
     double    mysigma = arma::median(arma::abs(Rvec)) / 0.675;
+    if (!std::isfinite(mysigma) || mysigma <= 0.0) {
+        mysigma = std::sqrt(std::numeric_limits<double>::epsilon());
+    }
 
     // Hoist identity matrices — their dimensions are fixed throughout the loop
     arma::mat eye_m = arma::eye<arma::mat>(m, m);
@@ -59,6 +64,14 @@ List RobRSVD1_cpp(
     double localdiff = 9999.0;
 
     while (localdiff > tol && iter < niter) {
+
+        // W-M7: recompute robust scale each iteration from the current
+        // residual to avoid freezing Huber weights at initialization.
+        Rvec = arma::vectorise(Rmat);
+        mysigma = arma::median(arma::abs(Rvec)) / 0.675;
+        if (!std::isfinite(mysigma) || mysigma <= 0.0) {
+            mysigma = std::sqrt(std::numeric_limits<double>::epsilon());
+        }
 
         // R: Wmat = huberk / abs(Rmat / mysigma)
         arma::mat Wmat = huberk / arma::abs(Rmat / mysigma);
@@ -160,9 +173,9 @@ List RobRSVD1_cpp(
 //
 // Exact C++ mirror of R/RobustSVD.R: RobRSVD.all()
 //
-// Sequentially extracts nrank robust rank-1 components by deflation,
-// always re-initialising with the first singular triplet of the original
-// svdinit (matching the R source).
+// Sequentially extracts nrank robust rank-1 components by deflation.
+// For each deflated residual, initialize RobRSVD1 from the leading classical
+// SVD triplet of that residual (warm-start in the current subproblem).
 //
 // Returns a named list: list(d = numeric vector,
 //                            u = m x nrank matrix,
@@ -203,8 +216,22 @@ List RobRSVD_all_cpp(
     // --- Ranks 2 .. Rm ---
     // R: for(i in 1:(Rm-1)) { data.svd1 <- RobRSVD1(data - Red, ...) }
     for (int i = 1; i < Rm; i++) {
-        List resi = RobRSVD1_cpp(data - Red, sinit1, uinit1, vinit1,
-                                  huberk, niter, tol);
+        arma::mat residual = data - Red;
+
+        arma::mat U0;
+        arma::vec s0;
+        arma::mat V0;
+        bool ok = arma::svd_econ(U0, s0, V0, residual);
+
+        if (!ok || s0.n_elem == 0) {
+            break;
+        }
+
+        List resi = RobRSVD1_cpp(residual,
+                                 s0(0),
+                                 U0.col(0),
+                                 V0.col(0),
+                                 huberk, niter, tol);
 
         d(i)      = Rcpp::as<double>(resi["s"]);
         U.col(i)  = Rcpp::as<arma::vec>(resi["u"]);

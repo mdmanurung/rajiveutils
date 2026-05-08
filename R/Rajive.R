@@ -1,57 +1,192 @@
-#' Robust Angle based Joint and Individual Variation Explained
+# Internal: cross-platform parallel lapply.  parallel::mclapply uses fork() and
+# silently degrades to serial on Windows; we fall back to a PSOCK cluster
+# there so num_cores > 1 actually does work on every platform.  When
+# num_cores == 1L we run serially to avoid any cluster setup overhead.
+#' @noRd
+.rajive_parallel_lapply <- function(X, FUN, num_cores = 1L,
+                                    extra_globals = list(), ...) {
+  num_cores <- max(1L, as.integer(num_cores))
+  if (num_cores == 1L) {
+    return(lapply(X, FUN, ...))
+  }
+  is_windows <- .Platform$OS.type == "windows"
+  if (!is_windows) {
+    return(parallel::mclapply(X, FUN, mc.cores = num_cores,
+                              mc.set.seed = TRUE, ...))
+  }
+  seed <- sample.int(.Machine$integer.max, 1L)
+  cl <- parallel::makePSOCKcluster(num_cores)
+  on.exit(parallel::stopCluster(cl), add = TRUE)
+  parallel::clusterSetRNGStream(cl, iseed = seed)
+  if (length(extra_globals) > 0L) {
+    parallel::clusterExport(cl, varlist = names(extra_globals),
+                            envir = list2env(extra_globals))
+  }
+  parallel::clusterEvalQ(cl, {
+    requireNamespace("rajiveplus", quietly = TRUE)
+    NULL
+  })
+  parallel::parLapply(cl, X, FUN, ...)
+}
+
+
+#' Robust Angle-based Joint and Individual Variation Explained (RaJIVE)
 #'
-#' Computes the robust aJIVE decomposition with parallel computation.
+#' Computes the robust aJIVE decomposition of a list of multi-view data
+#' matrices into joint, block-individual, and residual (noise) components.
+#' The robust SVD step uses an M-estimator (Huber loss) so the decomposition
+#' is resistant to a moderate fraction of element-wise outliers in any block.
 #'
-#' @param blocks List. A list of the data matrices.
-#' @param initial_signal_ranks Vector. The initial signal rank estimates.
-#' @param full Boolean. Whether or not to store the full J, I, E matrices or just their SVDs (set to FALSE to save memory).
-#' @param n_wedin_samples Integer. Number of wedin bound samples to draw for each data matrix.
-#' @param n_rand_dir_samples Integer. Number of random direction bound samples to draw.
-#' @param joint_rank Integer or NA. User specified joint_rank. If NA will be estimated from data.
-#' @param n_perm_samples Integer or NA. Number of permutation samples for the permutation-based
-#'   joint rank threshold. When provided, replaces the random-direction bound with a permutation
-#'   bound: rows of each block's signal scores are independently shuffled, the leading squared
-#'   singular value of the stacked permuted matrix is recorded, and the 95th percentile is used
-#'   as the threshold. Mutually exclusive with \code{n_rand_dir_samples} (permutation takes
-#'   precedence when both are set). Default \code{NA} (random-direction bound used instead).
-#' @param num_cores Integer. Number of cores to use for parallel computation (block SVD,
-#'   singular value extraction, Wedin bound resampling, and random direction bound sampling).
-#'   Default \code{1L} (serial). Set to a value greater than 1 to enable parallel execution
-#'   via \code{\link[parallel]{mclapply}} and \code{\link[doParallel]{registerDoParallel}}.
+#' Joint rank is selected by comparing the squared common singular values of
+#' the stacked signal-score matrix to a threshold derived from a Wedin bound
+#' and either a random-direction bound (default) or a permutation bound
+#' (when \code{n_perm_samples} is supplied). The combined threshold is
+#' \code{max(wedin, rand_dir | perm)}; this heuristic is conservative in
+#' practice but does not carry a formal FWER/FDR guarantee for rank
+#' selection (see \code{StatisticalAudits.md}, Finding 6).
 #'
-#' @return An object of class \code{"rajive"}: a named list containing:
+#' @param blocks List of numeric matrices. Each block has \eqn{n} rows
+#'   (matched samples, in the same order across blocks) and \eqn{p_k}
+#'   columns. All blocks must be finite (no \code{NA}/\code{NaN}/\code{Inf})
+#'   and have non-degenerate columns.
+#' @param initial_signal_ranks Integer vector of length \code{length(blocks)}
+#'   giving the initial signal-rank estimate for each block. Choose by visual
+#'   inspection of each block's scree plot.
+#' @param full Logical. If \code{TRUE} (default) the full \eqn{J}, \eqn{I},
+#'   \eqn{E} matrices are stored alongside their SVDs; set to \code{FALSE}
+#'   to save memory.
+#' @param n_wedin_samples Positive integer. Number of Wedin bound samples to
+#'   draw per block. Default \code{1000}.
+#' @param n_rand_dir_samples Positive integer. Number of random-direction
+#'   bound samples to draw. Default \code{1000}. Ignored when
+#'   \code{n_perm_samples} is supplied.
+#' @param joint_rank Integer or \code{NA}. User-specified joint rank. When
+#'   \code{NA} (default) the joint rank is estimated from the data.
+#' @param n_perm_samples Integer or \code{NA}. Number of permutation samples
+#'   for the permutation-based joint-rank threshold. When supplied, replaces
+#'   the random-direction bound: rows of each block's signal scores are
+#'   independently shuffled, the leading squared singular value of the
+#'   stacked permuted matrix is recorded, and its 95th percentile is used
+#'   as the threshold. Permutation takes precedence when both are set.
+#'   Default \code{NA}.
+#' @param num_cores Positive integer. Number of cores to use for parallel
+#'   block SVDs, Wedin / random-direction / permutation bound resampling.
+#'   Default \code{1L} (serial). When \code{> 1} the function transparently
+#'   uses \code{\link[parallel]{mclapply}} on Unix and a
+#'   \code{\link[parallel]{makePSOCKcluster}} on Windows. The RNG kind is
+#'   temporarily set to \code{"L'Ecuyer-CMRG"} for reproducible parallel
+#'   sampling (with a one-time warning); set
+#'   \code{RNGkind("L'Ecuyer-CMRG")} explicitly to silence it.
+#'
+#' @return An object of class \code{"rajive"}: a named list containing
 #'   \describe{
-#'     \item{\code{block_decomps}}{A list matrix (length \eqn{3 \times K}) of per-block
-#'       decompositions. For block \eqn{k}: individual component at index \eqn{3(k-1)+1},
-#'       joint component at \eqn{3(k-1)+2}, noise (residual) at \eqn{3(k-1)+3}.}
-#'     \item{\code{joint_scores}}{The \eqn{n \times r_J} matrix of shared joint score
-#'       vectors, where \eqn{r_J} is the estimated (or user-supplied) joint rank.}
-#'     \item{\code{joint_rank}}{Integer. The estimated (or user-supplied) joint rank.}
-#'     \item{\code{joint_rank_sel}}{A list of diagnostic information from the joint rank
-#'       selection step (observed singular values, Wedin samples, random direction samples,
-#'       thresholds).}
+#'     \item{\code{block_decomps}}{A list of length \eqn{3K}. For block
+#'       \eqn{k} (1-indexed): individual component at index
+#'       \eqn{3(k-1)+1}, joint component at \eqn{3(k-1)+2}, noise (residual)
+#'       at \eqn{3(k-1)+3}. Each entry has fields \code{u}, \code{d},
+#'       \code{v}, and \code{full} (when \code{full = TRUE}).}
+#'     \item{\code{joint_scores}}{The \eqn{n \times r_J} shared joint score
+#'       matrix, where \eqn{r_J} is the estimated (or user-supplied) joint
+#'       rank. May be a 0-column matrix when no joint signal is detected.}
+#'     \item{\code{joint_rank}}{Integer. Estimated (or user-supplied) joint
+#'       rank.}
+#'     \item{\code{joint_rank_sel}}{Diagnostics from joint-rank selection:
+#'       observed singular values, Wedin and random-direction (or
+#'       permutation) samples, percentile cutoffs, and the indices of
+#'       components dropped by the L2 identifiability filter.}
 #'   }
+#'
+#' @section Reproducibility:
+#' For exactly reproducible results, set \code{set.seed()} (and, for
+#' \code{num_cores > 1}, \code{RNGkind("L'Ecuyer-CMRG")}) before calling
+#' \code{Rajive()}.
+#'
+#' @seealso \code{\link{ajive.data.sim}} for simulating test data;
+#'   \code{\link{get_joint_rank}}, \code{\link{get_joint_scores}},
+#'   \code{\link{get_block_scores}}, \code{\link{get_block_loadings}},
+#'   \code{\link{get_block_matrix}} for component accessors;
+#'   \code{\link{plot_components}} for diagnostic plots;
+#'   \code{\link{jackstraw_rajive}} for feature-level significance testing.
 #'
 #' @examples
 #' \donttest{
-#' n <- 50
+#' set.seed(1)
+#' n   <- 50
 #' pks <- c(100, 80, 50)
-#' Y <- ajive.data.sim(K =3, rankJ = 3, rankA = c(7, 6, 4), n = n,
-#'                    pks = pks, dist.type = 1)
-#' initial_signal_ranks <-  c(7, 6, 4)
-#' data.ajive <- list((Y$sim_data[[1]]), (Y$sim_data[[2]]), (Y$sim_data[[3]]))
-#' ajive.results.robust <- Rajive(data.ajive, initial_signal_ranks)
+#' Y   <- ajive.data.sim(K = 3, rankJ = 3, rankA = c(7, 6, 4),
+#'                       n = n, pks = pks, dist.type = 1)
+#' fit <- Rajive(Y$sim_data, initial_signal_ranks = c(7, 6, 4))
+#' fit
+#' summary(fit)
 #' }
 #'
 #' @export
-
-
 Rajive <- function(blocks, initial_signal_ranks, full=TRUE,
                            n_wedin_samples=1000, n_rand_dir_samples=1000,
                            joint_rank=NA,
                            n_perm_samples=NA,
                            num_cores=1L)
 {
+
+  num_cores <- max(1L, as.integer(num_cores))
+
+  # Phase 4 boundary validation: abort early with clear classes/messages.
+  if (!is.list(blocks) || length(blocks) < 1L) {
+    cli::cli_abort(
+      c("`blocks` must be a non-empty list of numeric matrices."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+  if (length(initial_signal_ranks) != length(blocks)) {
+    cli::cli_abort(
+      c("`initial_signal_ranks` must have one entry per block.",
+        "x" = "Got {.val {length(initial_signal_ranks)}} ranks for {.val {length(blocks)}} blocks."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+  if (!all(vapply(blocks, is.matrix, logical(1L)))) {
+    cli::cli_abort(
+      c("Every element of `blocks` must be a matrix."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+  if (!all(vapply(blocks, function(x) all(is.finite(x)), logical(1L)))) {
+    cli::cli_abort(
+      c("All entries of each block must be finite (no NA/NaN/Inf)."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+
+  degenerate_blocks <- which(vapply(blocks, function(x)
+    any(apply(x, 2L, stats::sd) < .Machine$double.eps^0.5), logical(1L)))
+  if (length(degenerate_blocks) > 0L) {
+    cli::cli_abort(
+      c("Degenerate block detected: one or more columns have near-zero variance.",
+        "x" = "Block index(es): {.val {degenerate_blocks}}"),
+      class = "rajiveplus_degenerate_block"
+    )
+  }
+
+  n_obs <- nrow(blocks[[1L]])
+  if (n_obs < sum(initial_signal_ranks)) {
+    cli::cli_warn(
+      c("`n` is smaller than sum(initial_signal_ranks); estimation may be underdetermined.",
+        "i" = "n = {.val {n_obs}}, sum(initial_signal_ranks) = {.val {sum(initial_signal_ranks)}}"),
+      class = "rajiveplus_underdetermined"
+    )
+  }
+
+  # Phase 2 reproducibility: parallel paths require L'Ecuyer-CMRG.
+  if (num_cores > 1L && RNGkind()[1L] != "L'Ecuyer-CMRG") {
+    prev_rng <- RNGkind()
+    RNGkind("L'Ecuyer-CMRG")
+    on.exit(do.call(RNGkind, as.list(prev_rng)), add = TRUE)
+    cli::cli_warn(
+      c("RNG kind was set to L'Ecuyer-CMRG for reproducible parallel sampling.",
+        "i" = "Set RNGkind(\"L'Ecuyer-CMRG\") before calling Rajive() to silence this warning."),
+      class = "rajiveplus_rngkind_adjusted"
+    )
+  }
 
   K <- length(blocks)
 
@@ -61,21 +196,26 @@ Rajive <- function(blocks, initial_signal_ranks, full=TRUE,
 
   # If joint_rank is fixed, wedin resampling is skipped, so we only need
   # signal_rank + 1 singular values per block for thresholding.
+  # Audit fix #19: parallel::mclapply silently degrades to mc.cores = 1 on
+  # Windows (no fork).  Wrap in a small helper that uses a PSOCK cluster on
+  # Windows so users get true parallelism on every platform.
   if (is.na(joint_rank)) {
     # Full SVD is required for Wedin bound resampling (uses U_perp/V_perp).
-    block_svd <- parallel::mclapply(blocks, get_svd_robustH, mc.cores = num_cores)
+    block_svd <- .rajive_parallel_lapply(blocks, get_svd_robustH,
+                                         num_cores = num_cores)
   } else {
     max_rank_per_block <- vapply(blocks, function(x) min(dim(x)), integer(1L))
     svd_ranks <- pmin(initial_signal_ranks + 1L, max_rank_per_block)
 
-    block_svd <- parallel::mclapply(
+    block_svd <- .rajive_parallel_lapply(
       seq_along(blocks),
       function(k) get_svd_robustH(blocks[[k]], rank = svd_ranks[k]),
-      mc.cores = num_cores
+      num_cores = num_cores,
+      extra_globals = list(blocks = blocks, svd_ranks = svd_ranks)
     )
   }
-  # extract singular values from list
-  singular_values = parallel::mclapply(block_svd, function(l) l[[1]], mc.cores=num_cores)
+  # extract singular values from list (cheap; no need to parallelise)
+  singular_values <- lapply(block_svd, function(l) l[[1]])
   # apply get_sv_threshold
   sv_thresholds <- mapply(function(l,p)
     get_sv_threshold(l, rank = p), singular_values, initial_signal_ranks)
@@ -124,8 +264,14 @@ Rajive <- function(blocks, initial_signal_ranks, full=TRUE,
 #'
 
 get_sv_threshold <- function(singular_values, rank){
-
-.5 * (singular_values[rank] + singular_values[rank + 1])
+  # W-H1: boundary guard — when rank == length(singular_values) there is no
+  # rank+1 entry; use half the last singular value (midpoint to the implicit
+  # floor at 0) to avoid returning NA.
+  if (rank == length(singular_values)) {
+    0.5 * singular_values[rank]
+  } else {
+    0.5 * (singular_values[rank] + singular_values[rank + 1L])
+  }
 }
 
 
@@ -166,7 +312,7 @@ get_joint_scores_robustH <- function(blocks, block_svd, initial_signal_ranks, sv
   # SVD of the signal scores matrix -----------------------------------------
   signal_scores <- list()
   for(k in 1:K){
-    signal_scores[[k]] <- block_svd[[k]][['u']][, 1:initial_signal_ranks[k]]
+    signal_scores[[k]] <- block_svd[[k]][['u']][, 1:initial_signal_ranks[k], drop = FALSE]
   }
 
   M <- do.call(cbind, signal_scores)
@@ -325,7 +471,16 @@ get_final_decomposition_robustH <- function(X, joint_scores, sv_threshold, full=
 
 get_individual_decomposition_robustH <- function(X, joint_scores, sv_threshold, full=TRUE){
 
-  X_orthog <- (diag(dim(X)[1]) - joint_scores %*% t(joint_scores)) %*% X
+  # When joint_rank == 0 (after identifiability filtering), there is no
+  # joint subspace to project out: X_orthog == X.  Avoid forming an empty
+  # n x 0 / 0 x n product and the n x n identity.
+  if (is.null(joint_scores) || ncol(joint_scores) == 0L) {
+    X_orthog <- X
+  } else {
+    # Avoid building the full n x n projector: I - U U^T applied to X is
+    # X - U (U^T X) with two small mat-muls.
+    X_orthog <- X - joint_scores %*% (t(joint_scores) %*% X)
+  }
 
   indiv_decomposition <- get_svd_robustH(X_orthog)
 
@@ -353,9 +508,38 @@ get_individual_decomposition_robustH <- function(X, joint_scores, sv_threshold, 
 get_joint_decomposition_robustH <- function(X, joint_scores, full=TRUE){
 
   joint_rank <- dim(joint_scores)[2]
+
+  # Degenerate case: the identifiability filter removed every joint
+  # component (or the user supplied joint_rank = 0).  Return a zero
+  # decomposition so downstream `final_decomposition` can compute the
+  # noise as X - 0 - I correctly without invoking the C++ M-estimator
+  # on a zero matrix (which fails to converge: `solve(): solution not
+  # found`).
+  if (is.null(joint_rank) || joint_rank == 0L) {
+    n <- dim(X)[1]
+    p <- dim(X)[2]
+    joint_decomposition <- list(
+      u    = matrix(0, nrow = n, ncol = 0L),
+      d    = numeric(0L),
+      v    = matrix(0, nrow = p, ncol = 0L),
+      full = if (isTRUE(full)) matrix(0, nrow = n, ncol = p) else NA,
+      rank = 0L
+    )
+    return(joint_decomposition)
+  }
+
   J <-  joint_scores %*% t(joint_scores) %*% X
 
-  joint_decomposition <- get_svd_robustH(J, joint_rank)
+  # Audit perf #14: J = U U^T X is exactly rank `joint_rank` by construction
+  # (joint_scores is an orthonormal basis), so plain base::svd() is
+  # mathematically equivalent to the M-estimator robust SVD here but ~10-100x
+  # faster.  No outliers can survive the projection onto the joint subspace.
+  joint_decomposition <- svd(J, nu = joint_rank, nv = joint_rank)
+  joint_decomposition <- list(
+    u = joint_decomposition$u[, seq_len(joint_rank), drop = FALSE],
+    d = joint_decomposition$d[seq_len(joint_rank)],
+    v = joint_decomposition$v[, seq_len(joint_rank), drop = FALSE]
+  )
 
   if(full){
     joint_decomposition[['full']] <- J

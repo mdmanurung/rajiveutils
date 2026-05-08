@@ -4,14 +4,15 @@
 \alias{RobRSVD.all}
 \title{Computes the robust SVD of a matrix}
 \usage{
-RobRSVD.all(data, nrank = min(dim(data)), svdinit = svd(data))
+RobRSVD.all(data, nrank = min(dim(data)), svdinit = NULL)
 }
 \arguments{
 \item{data}{Matrix. X matrix.}
 
 \item{nrank}{Integer. Rank of SVD decomposition}
 
-\item{svdinit}{List. The standard SVD.}
+\item{svdinit}{List or NULL. Optional classical SVD used for initialization.
+If NULL (default), computed lazily after input validation.}
 }
 \value{
 List with entries \code{d}, \code{u}, \code{v}.

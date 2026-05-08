@@ -22,10 +22,8 @@ get_svd_robustH <- function(X, rank=NULL){
 }
 
 
-get_sv_threshold <- function(singular_values, rank){
-
-  .5 * (singular_values[rank] + singular_values[rank + 1])
-}
+# Note: get_sv_threshold() is defined in R/Rajive.R; the duplicate that
+# previously lived here was removed (audit finding #16).
 
 
 #' Truncates a robust SVD.
@@ -40,11 +38,14 @@ get_sv_threshold <- function(singular_values, rank){
 truncate_svd <- function(decomposition, rank){
 
   if(rank==0){
+    # W-M3: return 0-column matrices so ncol(u) / ncol(v) / length(d) == 0,
+    # not 1.  Any caller using ncol() to determine rank now gets the correct
+    # answer.  svd_reconstruction() handles n×0 matrices correctly in R.
     n <- dim(decomposition[['u']])[1]
     d <- dim(decomposition[['v']])[1]
-    decomposition[['u']] <- matrix(0, ncol=1, nrow=n)
-    decomposition[['d']] <- 0
-    decomposition[['v']] <- matrix(0, ncol=1, nrow=d)
+    decomposition[['u']] <- matrix(0, nrow=n, ncol=0)
+    decomposition[['d']] <- numeric(0)
+    decomposition[['v']] <- matrix(0, nrow=d, ncol=0)
   }else{
     decomposition[['u']] <- decomposition[['u']][, 1:rank, drop=FALSE]
     decomposition[['d']] <- decomposition[['d']][1:rank]
@@ -105,6 +106,20 @@ get_wedin_bound_samples <- function(X, SVD, signal_rank, num_samples=1000,
   wedin_bound_samples
 }
 
+# Suppress benign worker warnings such as
+# "package 'X' was built under R version ..." that can be emitted when
+# foreach workers load backend packages.
+.suppress_worker_build_warnings <- function(expr) {
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (grepl("was built under R version", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
 #' Resampling procedure for the wedin bound
 #'
 #' @param X Matrix. The data matrix.
@@ -112,22 +127,26 @@ get_wedin_bound_samples <- function(X, SVD, signal_rank, num_samples=1000,
 #' @param right_vectors Boolean. Right multiplication or left multiplication.
 #' @param num_samples Integer. Number of vectors selected for resampling procedure.
 #' @param num_cores Integer. Number of parallel cores to use (default 2).
-#' @importFrom foreach %dopar%
+#' @importFrom doRNG %dorng%
 
 wedin_bound_resampling <- function(X, perp_basis, right_vectors, num_samples=1000,
                                    num_cores=2){
 
   rank <- dim(perp_basis)[2]
+  if (rank == 0L) {
+    return(rep(0, num_samples))
+  }
   numCores <- max(1L, as.integer(num_cores))
+  seed <- sample.int(.Machine$integer.max, 1L)
   doParallel::registerDoParallel(numCores)
-  resampled_norms <- foreach::foreach (s=1:num_samples) %dopar% {
-
-    sampled_col_index <- sample.int(n=dim(perp_basis)[2],
-                                    size=rank,
-                                    replace=TRUE)
-
-
-    perp_resampled <- perp_basis[ , sampled_col_index]
+  on.exit(doParallel::stopImplicitCluster(), add = TRUE)
+  resampled_norms <- .suppress_worker_build_warnings(
+    foreach::foreach (s=1:num_samples, .options.RNG = seed) %dorng% {
+    # Draw a Haar-uniform orthonormal frame in the orthogonal complement
+    # subspace by sampling in coordinate space then mapping via perp_basis.
+    z <- matrix(stats::rnorm(ncol(perp_basis) * rank), ncol(perp_basis), rank)
+    q <- qr.Q(qr(z))
+    perp_resampled <- perp_basis %*% q
 
     if(right_vectors){
       resampled_projection <- X %*% perp_resampled
@@ -138,7 +157,7 @@ wedin_bound_resampling <- function(X, perp_basis, right_vectors, num_samples=100
     # operator L2 norm
     norm(resampled_projection,
          type='2')
-  }
+  })
 
   as.numeric(resampled_norms)
 }
@@ -164,19 +183,27 @@ get_random_direction_bound_robustH <- function(n_obs, dims, num_samples=1000,
 dims1 = as.list(dims)
 n_blocks <- length(dims)
 numCores <- max(1L, as.integer(num_cores))
+seed <- sample.int(.Machine$integer.max, 1L)
 doParallel::registerDoParallel(numCores)
+on.exit(doParallel::stopImplicitCluster(), add = TRUE)
 
-rand_dir_samples <- foreach::foreach (s=1:num_samples, .export=c("get_svd_robustH", "RobRSVD.all", "RobRSVD1", "RobRSVD_all_cpp", "RobRSVD1_cpp")) %dopar% {
+# Audit perf #9, #10: the random-direction bound resamples i.i.d. Gaussian
+# noise.  There is no contamination, so the M-estimator robust SVD is
+# unnecessary (and ~10-100x slower than base svd()).  We only need an
+# orthonormal basis of each random block plus the leading singular value of
+# the stacked basis.
+rand_dir_samples <- .suppress_worker_build_warnings(
+  foreach::foreach (s=1:num_samples, .options.RNG = seed) %dorng% {
 
   X <- lapply(dims1, function(l) matrix(rnorm(n_obs * l, mean=0,sd=1), n_obs, l))
-  rand_subspaces <- lapply(X, function(l) get_svd_robustH(l)[['u']])
+  rand_subspaces <- lapply(X, function(l) svd(l, nu = ncol(l), nv = 0)$u)
 
   M <- do.call(cbind, rand_subspaces)
-  M_svd <- get_svd_robustH(M, rank=min(dims))
+  d1 <- svd(M, nu = 0, nv = 0)$d[1L]
 
-  M_svd[['d']][1]^2
+  d1^2
 
-}
+})
 
 as.numeric(rand_dir_samples)
 }
@@ -198,27 +225,29 @@ as.numeric(rand_dir_samples)
 #' @return A numeric vector of length \code{num_samples}: leading squared
 #'   singular values of the permuted stacked signal-score matrix under the
 #'   null of no joint structure.
-#' @importFrom foreach %dopar%
+#' @importFrom doRNG %dorng%
 
 get_perm_bound_robustH <- function(block_svd, initial_signal_ranks,
                                    num_samples = 1000, num_cores = 2) {
   K     <- length(block_svd)
   n_obs <- nrow(block_svd[[1L]][["u"]])
   numCores <- max(1L, as.integer(num_cores))
+  seed <- sample.int(.Machine$integer.max, 1L)
   doParallel::registerDoParallel(numCores)
+  on.exit(doParallel::stopImplicitCluster(), add = TRUE)
 
-  perm_samples <- foreach::foreach(
-    s = 1:num_samples,
-    .export = c("get_svd_robustH", "RobRSVD.all", "RobRSVD1",
-                "RobRSVD_all_cpp", "RobRSVD1_cpp")
-  ) %dopar% {
+  # Audit perf #9: only the leading squared singular value is needed; the
+  # input is just permuted left-singular vectors of each block (already
+  # well-conditioned).  Use base svd() instead of the iterative robust SVD.
+  perm_samples <- .suppress_worker_build_warnings(
+    foreach::foreach(s = 1:num_samples, .options.RNG = seed) %dorng% {
     Uperm <- lapply(seq_len(K), function(k) {
       pi_k <- sample.int(n_obs)
       block_svd[[k]][["u"]][pi_k, 1:initial_signal_ranks[k], drop = FALSE]
     })
     M_perm <- do.call(cbind, Uperm)
-    get_svd_robustH(M_perm, rank = 1L)[["d"]][1L]^2
-  }
+    svd(M_perm, nu = 0, nv = 0)$d[1L]^2
+  })
 
   as.numeric(perm_samples)
 }
@@ -402,31 +431,26 @@ for (k in 1:K) {
 cowplot::plot_grid(plotlist = heatmap_listR, ncol = K)
 }
 
-#' Decomposition Heatmaps
-#' Plot data block heatmap
+#' Heatmap of a data matrix
 #'
 #' Visualization helper for individual data blocks or decomposition components.
 #' Produces a raster heatmap using \pkg{ggplot2} with a rainbow colour scale.
+#' Used internally by \code{\link{decomposition_heatmaps_robustH}} and exposed
+#' for ad-hoc inspection of any numeric matrix.
 #'
-#'
-#' @param data Matrix or data frame. The data to plot as a heatmap.
-#' @param show_color_bar Boolean.
-#' @param title Character.
-#' @param xlab Character.
-#' @param ylab Character
+#' @param data Numeric matrix. Rows are observations, columns are variables.
+#' @param show_color_bar Logical. Show the colour bar legend. Default
+#'   \code{TRUE}.
+#' @param title Character scalar. Plot title.
+#' @param xlab Character scalar. x-axis label.
+#' @param ylab Character scalar. y-axis label.
 #'
 #' @return A \code{ggplot} object.
 #'
-#' Data heatmap
+#' @examples
+#' M <- matrix(rnorm(100), 10, 10)
+#' data_heatmap(M, title = "random matrix")
 #'
-#' Plots a heatmap of a data matrix using ggplot2 and reshape2.
-#'
-#' @param data A numeric matrix.
-#' @param show_color_bar Logical. Show the colour bar legend. Default `TRUE`.
-#' @param title Character. Plot title.
-#' @param xlab Character. x-axis label.
-#' @param ylab Character. y-axis label.
-#' @return A `ggplot` object.
 #' @export
 #' @import ggplot2
 #' @importFrom grDevices rainbow
@@ -439,19 +463,29 @@ data_heatmap <- function (data, show_color_bar = TRUE, title = "", xlab = "",
     stop("The package 'ggplot2' is needed for this function to work. Please install it.",
          call. = FALSE)
   }
-  if (!requireNamespace("reshape2", quietly = TRUE)) {
-    stop("The package 'reshape2' is needed for this function to work. Please install it.",
-         call. = FALSE)
-  }
-  reshaped_data <- as.data.frame(reshape2::melt(data))
-  colnames(reshaped_data) <- c("obs", "var", "value")
-  ggplot(data = reshaped_data, aes_string(x = "var",
-                                          y = "obs")) +
-    geom_raster(aes_string(fill = "value"), show.legend = show_color_bar) +
+
+  data <- as.matrix(data)
+  obs_levels <- rownames(data)
+  if (is.null(obs_levels)) obs_levels <- as.character(seq_len(nrow(data)))
+  var_levels <- colnames(data)
+  if (is.null(var_levels)) var_levels <- as.character(seq_len(ncol(data)))
+
+  reshaped_data <- data.frame(
+    obs   = factor(rep(obs_levels, times = ncol(data)), levels = obs_levels),
+    var   = factor(rep(var_levels, each  = nrow(data)), levels = var_levels),
+    value = as.vector(data),
+    stringsAsFactors = FALSE
+  )
+
+  ggplot(data = reshaped_data, aes(x = .data$var, y = .data$obs)) +
+    geom_raster(aes(fill = .data$value), show.legend = show_color_bar) +
     scale_fill_gradientn(colours = rainbow(10)) +
-    theme(panel.background = element_blank(),  axis.line = element_blank(), legend.position = "bottom") +
+    theme(panel.background = element_blank(),
+          axis.line = element_blank(),
+          legend.position = "bottom") +
     scale_y_discrete(expand = c(0, 0)) +
-    scale_x_discrete(expand = c(0, 0)) + labs(title = title, x = xlab, y = ylab)
+    scale_x_discrete(expand = c(0, 0)) +
+    labs(title = title, x = xlab, y = ylab)
 }
 
 
@@ -484,14 +518,17 @@ showVarExplained_robust <- function(ajiveResults, blocks){
   # joint variance
   # joint is the second component for all 3
   VarJoint = rep(0, l)
-  for (i in 1:l) VarJoint[i] = norm(as.matrix(ajiveResults$block_decomps[[3*(i-1)+2]][[1]]),
-                                    type = "F")^2/norm(blocks[[i]], type = "F")^2
+  # W-M2: access singular values by name [['d']] not by position [[1]]; the
+  # positional accessor silently uses u instead of d if the C++ return order
+  # ever changes.  sum(d^2) = ||J||_F^2.
+  for (i in 1:l) VarJoint[i] = sum(ajiveResults$block_decomps[[3*(i-1)+2]][["d"]]^2) /
+                                    norm(blocks[[i]], type = "F")^2
 
   # individual variances
   # individual is the first component for all 3
   VarIndiv = rep(0, l)
-  for (i in 1:l) VarIndiv[i] = norm(as.matrix(ajiveResults$block_decomps[[3*(i-1)+1]][[1]]),
-                                    type = "F")^2/norm(blocks[[i]], type = "F")^2
+  for (i in 1:l) VarIndiv[i] = sum(ajiveResults$block_decomps[[3*(i-1)+1]][["d"]]^2) /
+                                    norm(blocks[[i]], type = "F")^2
 
   # residual variance
   VarSubtr = 1 - VarJoint - VarIndiv

@@ -1,16 +1,12 @@
 Package: rajiveplus
-Title: Robust Angle Based Joint and Individual Variation Explained
+Title: RAJIVE+
 Version: 0.1.0
 Authors@R: c(
-    person(given = "Erica",
-           family = "Ponzi",
+    person(given = "Mikhael",
+           family = "Manurung",
            role = c("aut", "cre"),
-           email = "erica.ponzi@medisin.uio.no"),
-     person(given = "Abhik",
-           family = "Ghosh",
-           role = c("aut"),
-           email = "abhik.ghosh.stat@gmail.com"))
-Description: A robust alternative to the aJIVE (angle based Joint and Individual Variation Explained) method (Feng et al 2018: <doi:10.1016/j.jmva.2018.03.008>) for the estimation of joint and individual components in the presence of outliers in multi-source data. It decomposes the multi-source data into joint, individual and residual (noise) contributions. The decomposition is robust to outliers and noise in the data. The method is illustrated in Ponzi et al (2021) <arXiv:2101.09110>.
+           email = "m.d.manuurng@lumc.nl"))
+Description: Blazing fast re-implementation of the RAJIVE algorithm for joint and individual variation explained in multi-view data. This package provides a user-friendly interface to perform RAJIVE analysis, along with tools for visualization and interpretation of results.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 3.1.0)
@@ -38,11 +34,13 @@ Suggests:
 VignetteBuilder: knitr
 Imports: ggplot2,
 	doParallel,
+    doRNG,
 	foreach,
+    cli,
 	stats,
 	Rcpp,
 	parallel
 LinkingTo: Rcpp, RcppArmadillo
 URL: https://mdmanurung.github.io/rajiveplus/
 BugReports: https://github.com/mdmanurung/rajiveplus/issues
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.0.0

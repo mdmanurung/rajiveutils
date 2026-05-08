@@ -75,6 +75,7 @@ ajive.data.sim <- function(K = 3, rankJ = 2,
 #'
 #' @importFrom stats rnorm
 #' @importFrom stats runif
+#' @importFrom stats rexp
 #'
 sim_dist <- function(num, n, p) {
   # simulate from a random distribution and output n x pk matrix
@@ -83,8 +84,14 @@ sim_dist <- function(num, n, p) {
 
   if (num == 1) {
     dist <- rnorm(n*p)
-  }else if (num == 2) {
+  } else if (num == 2) {
     dist <- runif(min=0, max=1, n=n*p)
+  } else if (num == 3) {
+    # mean-centred exponential so the noise is zero-mean like the others
+    dist <- rexp(n = n*p, rate = 1) - 1
+  } else {
+    stop("sim_dist: 'num' must be 1 (normal), 2 (uniform), or 3 (exponential)",
+         call. = FALSE)
   }
   out <- matrix(dist, nrow = n, ncol = p)
   return(out)

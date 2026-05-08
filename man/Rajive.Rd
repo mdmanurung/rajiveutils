@@ -2,7 +2,7 @@
 % Please edit documentation in R/Rajive.R
 \name{Rajive}
 \alias{Rajive}
-\title{Robust Angle based Joint and Individual Variation Explained}
+\title{Robust Angle-based Joint and Individual Variation Explained (RaJIVE)}
 \usage{
 Rajive(
   blocks,
@@ -16,56 +16,105 @@ Rajive(
 )
 }
 \arguments{
-\item{blocks}{List. A list of the data matrices.}
+\item{blocks}{List of numeric matrices. Each block has \eqn{n} rows
+(matched samples, in the same order across blocks) and \eqn{p_k}
+columns. All blocks must be finite (no \code{NA}/\code{NaN}/\code{Inf})
+and have non-degenerate columns.}
 
-\item{initial_signal_ranks}{Vector. The initial signal rank estimates.}
+\item{initial_signal_ranks}{Integer vector of length \code{length(blocks)}
+giving the initial signal-rank estimate for each block. Choose by visual
+inspection of each block's scree plot.}
 
-\item{full}{Boolean. Whether or not to store the full J, I, E matrices or just their SVDs (set to FALSE to save memory).}
+\item{full}{Logical. If \code{TRUE} (default) the full \eqn{J}, \eqn{I},
+\eqn{E} matrices are stored alongside their SVDs; set to \code{FALSE}
+to save memory.}
 
-\item{n_wedin_samples}{Integer. Number of wedin bound samples to draw for each data matrix.}
+\item{n_wedin_samples}{Positive integer. Number of Wedin bound samples to
+draw per block. Default \code{1000}.}
 
-\item{n_rand_dir_samples}{Integer. Number of random direction bound samples to draw.}
+\item{n_rand_dir_samples}{Positive integer. Number of random-direction
+bound samples to draw. Default \code{1000}. Ignored when
+\code{n_perm_samples} is supplied.}
 
-\item{joint_rank}{Integer or NA. User specified joint_rank. If NA will be estimated from data.}
+\item{joint_rank}{Integer or \code{NA}. User-specified joint rank. When
+\code{NA} (default) the joint rank is estimated from the data.}
 
-\item{n_perm_samples}{Integer or NA. Number of permutation samples for the permutation-based
-joint rank threshold. When provided, replaces the random-direction bound with a permutation
-bound: rows of each block's signal scores are independently shuffled, the leading squared
-singular value of the stacked permuted matrix is recorded, and the 95th percentile is used
-as the threshold. Mutually exclusive with \code{n_rand_dir_samples} (permutation takes
-precedence when both are set). Default \code{NA} (random-direction bound used instead).}
+\item{n_perm_samples}{Integer or \code{NA}. Number of permutation samples
+for the permutation-based joint-rank threshold. When supplied, replaces
+the random-direction bound: rows of each block's signal scores are
+independently shuffled, the leading squared singular value of the
+stacked permuted matrix is recorded, and its 95th percentile is used
+as the threshold. Permutation takes precedence when both are set.
+Default \code{NA}.}
 
-\item{num_cores}{Integer. Number of cores to use for parallel computation (block SVD,
-singular value extraction, Wedin bound resampling, and random direction bound sampling).
-Default \code{1L} (serial). Set to a value greater than 1 to enable parallel execution
-via \code{\link[parallel]{mclapply}} and \code{\link[doParallel]{registerDoParallel}}.}
+\item{num_cores}{Positive integer. Number of cores to use for parallel
+block SVDs, Wedin / random-direction / permutation bound resampling.
+Default \code{1L} (serial). When \code{> 1} the function transparently
+uses \code{\link[parallel]{mclapply}} on Unix and a
+\code{\link[parallel]{makePSOCKcluster}} on Windows. The RNG kind is
+temporarily set to \code{"L'Ecuyer-CMRG"} for reproducible parallel
+sampling (with a one-time warning); set
+\code{RNGkind("L'Ecuyer-CMRG")} explicitly to silence it.}
 }
 \value{
-An object of class \code{"rajive"}: a named list containing:
+An object of class \code{"rajive"}: a named list containing
   \describe{
-    \item{\code{block_decomps}}{A list matrix (length \eqn{3 \times K}) of per-block
-      decompositions. For block \eqn{k}: individual component at index \eqn{3(k-1)+1},
-      joint component at \eqn{3(k-1)+2}, noise (residual) at \eqn{3(k-1)+3}.}
-    \item{\code{joint_scores}}{The \eqn{n \times r_J} matrix of shared joint score
-      vectors, where \eqn{r_J} is the estimated (or user-supplied) joint rank.}
-    \item{\code{joint_rank}}{Integer. The estimated (or user-supplied) joint rank.}
-    \item{\code{joint_rank_sel}}{A list of diagnostic information from the joint rank
-      selection step (observed singular values, Wedin samples, random direction samples,
-      thresholds).}
+    \item{\code{block_decomps}}{A list of length \eqn{3K}. For block
+      \eqn{k} (1-indexed): individual component at index
+      \eqn{3(k-1)+1}, joint component at \eqn{3(k-1)+2}, noise (residual)
+      at \eqn{3(k-1)+3}. Each entry has fields \code{u}, \code{d},
+      \code{v}, and \code{full} (when \code{full = TRUE}).}
+    \item{\code{joint_scores}}{The \eqn{n \times r_J} shared joint score
+      matrix, where \eqn{r_J} is the estimated (or user-supplied) joint
+      rank. May be a 0-column matrix when no joint signal is detected.}
+    \item{\code{joint_rank}}{Integer. Estimated (or user-supplied) joint
+      rank.}
+    \item{\code{joint_rank_sel}}{Diagnostics from joint-rank selection:
+      observed singular values, Wedin and random-direction (or
+      permutation) samples, percentile cutoffs, and the indices of
+      components dropped by the L2 identifiability filter.}
   }
 }
 \description{
-Computes the robust aJIVE decomposition with parallel computation.
+Computes the robust aJIVE decomposition of a list of multi-view data
+matrices into joint, block-individual, and residual (noise) components.
+The robust SVD step uses an M-estimator (Huber loss) so the decomposition
+is resistant to a moderate fraction of element-wise outliers in any block.
 }
-\examples{
-\donttest{
-n <- 50
-pks <- c(100, 80, 50)
-Y <- ajive.data.sim(K =3, rankJ = 3, rankA = c(7, 6, 4), n = n,
-                   pks = pks, dist.type = 1)
-initial_signal_ranks <-  c(7, 6, 4)
-data.ajive <- list((Y$sim_data[[1]]), (Y$sim_data[[2]]), (Y$sim_data[[3]]))
-ajive.results.robust <- Rajive(data.ajive, initial_signal_ranks)
+\details{
+Joint rank is selected by comparing the squared common singular values of
+the stacked signal-score matrix to a threshold derived from a Wedin bound
+and either a random-direction bound (default) or a permutation bound
+(when \code{n_perm_samples} is supplied). The combined threshold is
+\code{max(wedin, rand_dir | perm)}; this heuristic is conservative in
+practice but does not carry a formal FWER/FDR guarantee for rank
+selection (see \code{StatisticalAudits.md}, Finding 6).
+}
+\section{Reproducibility}{
+
+For exactly reproducible results, set \code{set.seed()} (and, for
+\code{num_cores > 1}, \code{RNGkind("L'Ecuyer-CMRG")}) before calling
+\code{Rajive()}.
 }
 
+\examples{
+\donttest{
+set.seed(1)
+n   <- 50
+pks <- c(100, 80, 50)
+Y   <- ajive.data.sim(K = 3, rankJ = 3, rankA = c(7, 6, 4),
+                      n = n, pks = pks, dist.type = 1)
+fit <- Rajive(Y$sim_data, initial_signal_ranks = c(7, 6, 4))
+fit
+summary(fit)
+}
+
+}
+\seealso{
+\code{\link{ajive.data.sim}} for simulating test data;
+  \code{\link{get_joint_rank}}, \code{\link{get_joint_scores}},
+  \code{\link{get_block_scores}}, \code{\link{get_block_loadings}},
+  \code{\link{get_block_matrix}} for component accessors;
+  \code{\link{plot_components}} for diagnostic plots;
+  \code{\link{jackstraw_rajive}} for feature-level significance testing.
 }
