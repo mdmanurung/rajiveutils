@@ -41,7 +41,9 @@
 
 
 Rajive <- function(blocks, initial_signal_ranks, full=TRUE,
-                           n_wedin_samples=1000, n_rand_dir_samples=1000, joint_rank=NA,
+                           n_wedin_samples=1000, n_rand_dir_samples=1000,
+                           n_perm_samples=NA,
+                           joint_rank=NA,
                            num_cores=1L)
 {
 
@@ -80,6 +82,7 @@ Rajive <- function(blocks, initial_signal_ranks, full=TRUE,
   out <- get_joint_scores_robustH(blocks, block_svd, initial_signal_ranks, sv_thresholds,
                                   n_wedin_samples=n_wedin_samples,
                                   n_rand_dir_samples=n_rand_dir_samples,
+                                  n_perm_samples=n_perm_samples,
                                   joint_rank=joint_rank,
                                   num_cores=num_cores)
   joint_rank_sel_results <- out$rank_sel_results
@@ -139,11 +142,12 @@ get_sv_threshold <- function(singular_values, rank){
 
 get_joint_scores_robustH <- function(blocks, block_svd, initial_signal_ranks, sv_thresholds,
                                      n_wedin_samples=1000, n_rand_dir_samples=1000,
+                                     n_perm_samples=NA,
                                      joint_rank=NA, num_cores=2){
 
 
-  if(is.na(n_wedin_samples) & is.na(n_rand_dir_samples) & is.na(joint_rank)){
-    stop('at least one of n_wedin_samples, n_rand_dir_samples, or joint_rank must not be NA',
+  if(is.na(n_wedin_samples) & is.na(n_rand_dir_samples) & is.na(n_perm_samples) & is.na(joint_rank)){
+    stop('at least one of n_wedin_samples, n_rand_dir_samples, n_perm_samples, or joint_rank must not be NA',
          call.=FALSE)
   }
 
@@ -192,22 +196,36 @@ get_joint_scores_robustH <- function(blocks, block_svd, initial_signal_ranks, sv
       wedin_svsq_threshold <- NA
     }
 
-    # maybe compute random direction bound
-    if(!is.na(n_rand_dir_samples)){
+    # maybe compute random direction bound or permutation bound
+    # permutation replaces random direction when n_perm_samples is set
+    perm_svsq_threshold    <- NA
+    rand_dir_svsq_threshold <- NA
 
-      rand_dir_samples <- get_random_direction_bound_robustH(n_obs=n_obs, dims=initial_signal_ranks,
-                                                             num_samples=n_rand_dir_samples,
-                                                             num_cores=num_cores)
+    if (!is.na(n_perm_samples)) {
+
+      perm_draws <- get_perm_bound_robustH(block_svd = block_svd,
+                                           initial_signal_ranks = initial_signal_ranks,
+                                           num_samples = n_perm_samples,
+                                           num_cores = num_cores)
+      perm_svsq_threshold <- quantile(perm_draws, .95)
+
+      rank_sel_results[['perm']] <- list(perm_samples = perm_draws,
+                                         perm_svsq_threshold = perm_svsq_threshold)
+
+    } else if (!is.na(n_rand_dir_samples)) {
+
+      rand_dir_samples <- get_random_direction_bound_robustH(n_obs = n_obs,
+                                                             dims = initial_signal_ranks,
+                                                             num_samples = n_rand_dir_samples,
+                                                             num_cores = num_cores)
       rand_dir_svsq_threshold <- quantile(rand_dir_samples, .95)
 
-      rank_sel_results[['rand_dir']] <- list(rand_dir_samples=rand_dir_samples,
-                                             rand_dir_svsq_threshold=rand_dir_svsq_threshold)
-
-    } else {
-      rand_dir_svsq_threshold <- NA
+      rank_sel_results[['rand_dir']] <- list(rand_dir_samples = rand_dir_samples,
+                                             rand_dir_svsq_threshold = rand_dir_svsq_threshold)
     }
 
-    overall_sv_sq_threshold <- max(wedin_svsq_threshold, rand_dir_svsq_threshold, na.rm=TRUE)
+    overall_sv_sq_threshold <- max(wedin_svsq_threshold, rand_dir_svsq_threshold,
+                                   perm_svsq_threshold, na.rm = TRUE)
     joint_rank_estimate <- sum(M_svd[['d']]^2 > overall_sv_sq_threshold)
 
     rank_sel_results[['overall_sv_sq_threshold']] <- overall_sv_sq_threshold

@@ -11,6 +11,7 @@ get_joint_scores_robustH(
   sv_thresholds,
   n_wedin_samples = 1000,
   n_rand_dir_samples = 1000,
+  n_perm_samples = NA,
   joint_rank = NA,
   num_cores = 2
 )

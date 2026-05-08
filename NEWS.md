@@ -1,5 +1,19 @@
 # rajiveplus (development)
 
+## New features
+
+- Added `n_perm_samples` argument to `Rajive()` (default `NA`, no behaviour
+  change). When non-NA, a non-parametric permutation-based joint-rank
+  threshold is computed by independently permuting the row order of each
+  block's signal scores and sampling the leading squared singular value of the
+  stacked matrix. This replaces the random direction bound and provides a
+  data-driven null distribution that adapts to the actual noise in each block,
+  making it particularly useful for heavy-tailed or non-Gaussian data.
+  Diagnostic results are stored in `fit$joint_rank_sel$perm` and are
+  surfaced in `extract_components(type = "diagnostics")` and
+  `plot_components(plot_type = "ajive_diagnostic")` (forestgreen histogram
+  and hline).
+
 ## New vignettes
 
 - Added `vignettes/function_gallery.Rmd`: comprehensive API gallery covering

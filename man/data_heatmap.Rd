@@ -8,18 +8,24 @@ Plot data block heatmap}
 data_heatmap(data, show_color_bar = TRUE, title = "", xlab = "", ylab = "")
 }
 \arguments{
-\item{data}{Matrix or data frame. The data to plot as a heatmap.}
+\item{data}{A numeric matrix.}
 
-\item{show_color_bar}{Boolean.}
+\item{show_color_bar}{Logical. Show the colour bar legend. Default `TRUE`.}
 
-\item{title}{Character.}
+\item{title}{Character. Plot title.}
 
-\item{xlab}{Character.}
+\item{xlab}{Character. x-axis label.}
 
-\item{ylab}{Character}
+\item{ylab}{Character. y-axis label.}
 }
 \value{
 A \code{ggplot} object.
+
+Data heatmap
+
+Plots a heatmap of a data matrix using ggplot2 and reshape2.
+
+A `ggplot` object.
 }
 \description{
 Visualization helper for individual data blocks or decomposition components.

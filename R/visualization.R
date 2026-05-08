@@ -399,9 +399,21 @@ plot_components <- function(ajive_output = NULL,
     rand_percentile  <- NA_real_
   }
 
-  if (!has_wedin && !has_random) {
+  # Permutation bound -----------------------------------------------------
+  has_perm <- !is.null(jrs[["perm"]])
+  if (has_perm) {
+    perm_cutoff   <- as.numeric(jrs[["perm"]][["perm_svsq_threshold"]])
+    perm_samples  <- as.numeric(jrs[["perm"]][["perm_samples"]])
+    perm_percentile <- 95
+  } else {
+    perm_cutoff  <- NA_real_
+    perm_samples <- NULL
+    perm_percentile <- NA_real_
+  }
+
+  if (!has_wedin && !has_random && !has_perm) {
     warning(paste0(
-      "Both Wedin and random-direction bounds are absent from joint_rank_sel. ",
+      "Wedin, random-direction, and permutation bounds are absent from joint_rank_sel. ",
       "Diagnostic visualizations will show observed singular values only."),
       call. = FALSE)
   }
@@ -411,8 +423,12 @@ plot_components <- function(ajive_output = NULL,
 
   cutoff_rule <- if (has_wedin && has_random) {
     "max(wedin, random)"
+  } else if (has_wedin && has_perm) {
+    "max(wedin, perm)"
   } else if (has_wedin) {
     "wedin_only"
+  } else if (has_perm) {
+    "perm_only"
   } else if (has_random) {
     "random_only"
   } else {
@@ -429,14 +445,18 @@ plot_components <- function(ajive_output = NULL,
     overall_sv_sq_threshold = overall_sv_sq_threshold,
     wedin_samples           = wedin_samples,
     rand_dir_samples        = rand_dir_samples,
+    perm_samples            = perm_samples,
     wedin_cutoff            = wedin_cutoff,
     rand_cutoff             = rand_cutoff,
+    perm_cutoff             = perm_cutoff,
     wedin_percentile        = wedin_percentile,
     rand_percentile         = rand_percentile,
+    perm_percentile         = perm_percentile,
     identif_dropped         = identif_dropped,
     cutoff_rule             = cutoff_rule,
     has_wedin               = has_wedin,
-    has_random              = has_random
+    has_random              = has_random,
+    has_perm                = has_perm
   )
   class(payload) <- c("rajive_diagnostics", "list")
 
@@ -459,6 +479,7 @@ plot_components <- function(ajive_output = NULL,
     overall_sv_sq_threshold = overall_sv_sq_threshold,
     wedin_cutoff            = wedin_cutoff,
     rand_cutoff             = rand_cutoff,
+    perm_cutoff             = perm_cutoff,
     stringsAsFactors        = FALSE
   )
 }
@@ -597,13 +618,20 @@ plot_components <- function(ajive_output = NULL,
 
   has_wedin  <- diag$has_wedin
   has_random <- diag$has_random
+  has_perm   <- isTRUE(diag$has_perm)
   threshold  <- diag$overall_sv_sq_threshold
 
   subtitle <- if (has_wedin && has_random) {
     sprintf("Joint rank: %d | Threshold: %.4f (%s)",
             diag$joint_rank_estimate, threshold, diag$cutoff_rule)
+  } else if (has_wedin && has_perm) {
+    sprintf("Joint rank: %d | Threshold: %.4f (%s)",
+            diag$joint_rank_estimate, threshold, diag$cutoff_rule)
   } else if (has_wedin) {
-    sprintf("Joint rank: %d | Wedin bound only (rand_dir bound unavailable)",
+    sprintf("Joint rank: %d | Wedin bound only (rand_dir/perm bound unavailable)",
+            diag$joint_rank_estimate)
+  } else if (has_perm) {
+    sprintf("Joint rank: %d | Permutation bound only (Wedin bound unavailable)",
             diag$joint_rank_estimate)
   } else if (has_random) {
     sprintf("Joint rank: %d | Random direction bound only (Wedin bound unavailable)",
@@ -646,6 +674,16 @@ plot_components <- function(ajive_output = NULL,
       color      = "tomato",
       linetype   = "dotted",
       linewidth  = rand_lw
+    )
+  }
+
+  if (has_perm) {
+    perm_lw <- if (!has_wedin || diag$perm_cutoff >= diag$wedin_cutoff) 1.5 else 0.75
+    p <- p + ggplot2::geom_hline(
+      yintercept = diag$perm_cutoff,
+      color      = "forestgreen",
+      linetype   = "dotdash",
+      linewidth  = perm_lw
     )
   }
 
@@ -709,6 +747,26 @@ plot_components <- function(ajive_output = NULL,
       theme_fn()
   }
 
+  if (isTRUE(diag$has_perm) && !is.null(diag$perm_samples)) {
+    perm_cutoff <- if (!is.null(dots$cutoff_quantile)) {
+      stats::quantile(diag$perm_samples, dots$cutoff_quantile)
+    } else {
+      diag$perm_cutoff
+    }
+    df_p <- data.frame(sample = diag$perm_samples)
+    plots[["perm"]] <- ggplot2::ggplot(df_p, ggplot2::aes(x = .data$sample)) +
+      ggplot2::geom_histogram(bins = 30L, fill = "forestgreen", alpha = 0.7,
+                              color = "white") +
+      ggplot2::geom_vline(xintercept = perm_cutoff, color = "forestgreen",
+                          linewidth = 1.2, linetype = "dashed") +
+      ggplot2::labs(
+        x     = "Permutation bound samples",
+        y     = "Count",
+        title = sprintf("Permutation bound (cutoff = %.4f)", perm_cutoff)
+      ) +
+      theme_fn()
+  }
+
   if (length(plots) == 0L) {
     # No distributions available — annotated empty plot
     return(
@@ -723,14 +781,14 @@ plot_components <- function(ajive_output = NULL,
 
   if (length(plots) == 1L) return(plots[[1L]])
 
-  # Both distributions: combine side-by-side
+  # Multiple distributions: combine side-by-side
   if (!requireNamespace("patchwork", quietly = TRUE)) {
     stop(paste0(
-      "Package 'patchwork' is required to combine both bound-distribution plots. ",
+      "Package 'patchwork' is required to combine bound-distribution plots. ",
       "Install with: install.packages('patchwork')."),
       call. = FALSE)
   }
-  plots[["wedin"]] + plots[["rand_dir"]]
+  Reduce(`+`, plots)
 }
 
 
@@ -743,9 +801,10 @@ plot_components <- function(ajive_output = NULL,
 
   has_wedin  <- diag$has_wedin
   has_random <- diag$has_random
+  has_perm   <- isTRUE(diag$has_perm)
 
   # No bounds at all: return single panel with annotation already in subtitle
-  if (!has_wedin && !has_random) {
+  if (!has_wedin && !has_random && !has_perm) {
     return(p_thresh)
   }
 
@@ -792,12 +851,29 @@ plot_components <- function(ajive_output = NULL,
       theme_fn()
   }
 
-  bottom <- if (length(dist_plots) == 2L) {
-    dist_plots[["wedin"]] + dist_plots[["rand_dir"]]
-  } else {
-    dist_plots[[1L]]
+  if (has_perm && !is.null(diag$perm_samples)) {
+    pc <- resolve_cutoff(diag$perm_samples, diag$perm_cutoff, q)
+    df_p <- data.frame(sample = diag$perm_samples)
+    dist_plots[["perm"]] <- ggplot2::ggplot(df_p, ggplot2::aes(x = .data$sample)) +
+      ggplot2::geom_histogram(bins = 30L, fill = "forestgreen", alpha = 0.7,
+                              color = "white") +
+      ggplot2::geom_vline(xintercept = pc, color = "forestgreen",
+                          linewidth = 1.2, linetype = "dashed") +
+      ggplot2::labs(x = "Permutation samples", y = "Count",
+                    title = sprintf("Permutation (cutoff = %.4f)", pc)) +
+      theme_fn()
   }
 
+  n_dist <- length(dist_plots)
+  bottom <- if (n_dist == 0L) {
+    NULL
+  } else if (n_dist == 1L) {
+    dist_plots[[1L]]
+  } else {
+    Reduce(`+`, dist_plots)
+  }
+
+  if (is.null(bottom)) return(p_thresh)
   p_thresh / bottom
 }
 

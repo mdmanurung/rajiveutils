@@ -182,6 +182,46 @@ as.numeric(rand_dir_samples)
 }
 
 
+#' Permutation-based bound for joint rank selection
+#'
+#' Builds a non-parametric null distribution for the leading squared singular
+#' value of the stacked signal-scores matrix by independently permuting the
+#' sample (row) order of each block's signal scores. This provides a
+#' data-driven alternative to the random direction bound that respects the
+#' actual noise distribution of each block.
+#'
+#' @param block_svd List of block SVDs (output of \code{get_svd_robustH}).
+#' @param initial_signal_ranks Integer vector. Signal rank for each block.
+#' @param num_samples Integer. Number of permutations to draw.
+#' @param num_cores Integer. Parallel cores to use (default 2).
+#'
+#' @return A numeric vector of length \code{num_samples}: leading squared
+#'   singular values of the permuted stacked signal-score matrix under the
+#'   null of no joint structure.
+#' @importFrom foreach %dopar%
+
+get_perm_bound_robustH <- function(block_svd, initial_signal_ranks,
+                                   num_samples = 1000, num_cores = 2) {
+  K     <- length(block_svd)
+  n_obs <- nrow(block_svd[[1L]][["u"]])
+  numCores <- max(1L, as.integer(num_cores))
+  doParallel::registerDoParallel(numCores)
+
+  perm_samples <- foreach::foreach(
+    s = 1:num_samples,
+    .export = c("get_svd_robustH", "RobRSVD.all", "RobRSVD1",
+                "RobRSVD_all_cpp", "RobRSVD1_cpp")
+  ) %dopar% {
+    Uperm <- lapply(seq_len(K), function(k) {
+      pi_k <- sample.int(n_obs)
+      block_svd[[k]][["u"]][pi_k, 1:initial_signal_ranks[k], drop = FALSE]
+    })
+    M_perm <- do.call(cbind, Uperm)
+    get_svd_robustH(M_perm, rank = 1L)[["d"]][1L]^2
+  }
+
+  as.numeric(perm_samples)
+}
 
 
 
