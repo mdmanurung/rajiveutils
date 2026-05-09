@@ -15,7 +15,7 @@ local_js_fixture <- function(seed = 1L, n = 60, pks = c(80, 60),
                         n = n, pks = pks, dist.type = 1)
   })
   fit <- withr::with_seed(seed,
-    Rajive(Y$sim_data, initial_signal_ranks = c(4, 3))
+    Rajive(Y$sim_data, initial_signal_ranks = c(4, 3), joint_rank = 2L)
   )
   list(fit = fit, data = Y$sim_data, n_null = n_null)
 }

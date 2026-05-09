@@ -7,7 +7,7 @@ local_js_planted <- function(seed = 55L) {
   Y   <- ajive.data.sim(K = 2, rankJ = 2, rankA = c(4, 3),
                         n = n, pks = pks, dist.type = 1)
   fit <- withr::with_seed(seed,
-    Rajive(Y$sim_data, initial_signal_ranks = c(4, 3))
+    Rajive(Y$sim_data, initial_signal_ranks = c(4, 3), joint_rank = 2L)
   )
   list(fit = fit, data = Y$sim_data)
 }
