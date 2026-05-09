@@ -9,7 +9,7 @@ jackstraw_rajive(
   blocks,
   alpha = 0.05,
   n_null = 10,
-  correction = c("BH", "bonferroni", "none"),
+  correction = c("BY", "BH", "bonferroni", "none"),
   pip = FALSE,
   pip_pi0 = NULL,
   pip_group = c("component", "block_component", "pooled")
@@ -30,11 +30,17 @@ at the cost of computation time.  Default \code{10}; recommended
 \code{50}--\code{100} for publication-quality results.}
 
 \item{correction}{Character string controlling multiple-testing correction.
-One of \code{"BH"} (default), \code{"bonferroni"}, or \code{"none"}.
-Adjustments are applied globally across all block/component/feature tests
-in the returned object. \code{"BH"} controls the false discovery rate,
-while \code{"bonferroni"} controls the family-wise error rate by dividing
-\code{alpha} by the total number of tests.}
+One of \code{"BY"} (default), \code{"BH"}, \code{"bonferroni"}, or
+\code{"none"}.  Adjustments are applied globally across all
+block/component/feature tests in the returned object.
+\code{"BY"} (Benjamini--Yekutieli) controls the FDR under arbitrary
+dependency structure among tests; it is preferred for omics data because
+nearby genomic features are often correlated.  \code{"BH"}
+(Benjamini--Hochberg) also controls FDR but assumes positive regression
+dependency (PRDS), which omics blocks may violate --- use it only when
+the dependency structure is known to be PRDS or features are nearly
+independent.  \code{"bonferroni"} controls the family-wise error rate
+by dividing \code{alpha} by the total number of tests.}
 
 \item{pip}{Logical; if \code{TRUE}, compute posterior inclusion probabilities
 (PIPs) for each feature via \code{qvalue::lfdr()}.  Requires the
@@ -94,10 +100,20 @@ implementation. Empirical p-values are computed and
 optionally corrected for multiple testing.
 
 \strong{Interpretation note:} A significant result means the feature is
-\emph{associated with} the estimated joint component score.  It does not
-imply that the feature is a causal driver or that the association is with
-the true latent score rather than its estimate (StatisticalAudits.md,
-Finding 8).
+\emph{associated with} the \emph{estimated} joint component score --- the
+score as recovered from data by RaJIVE, not the unobservable true latent
+factor.  It does not imply that the feature is a causal driver or that
+the association would hold against the true latent score
+(StatisticalAudits.md, Finding 8).
+}
+\note{
+\strong{Default correction is \code{"BY"}}, not \code{"BH"}. The
+  Benjamini--Yekutieli correction is valid under arbitrary dependency
+  structure, whereas Benjamini--Hochberg requires positive regression
+  dependency (PRDS). In omics blocks, neighboring features are often
+  correlated; using \code{"BH"} in that setting can inflate the
+  false-discovery rate beyond the nominal level (Benjamini & Yekutieli
+  2001, \emph{Ann. Statist.} 29(4):1165--1188).
 }
 \examples{
 \donttest{

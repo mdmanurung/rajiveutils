@@ -18,3 +18,5 @@
 ^vignettes/data/\.gitkeep$
 ^AGENTS\.md$
 ^test_output\.txt$
+^test_output\.log$
+^audits$

@@ -40,14 +40,17 @@ for benchmarks and applied analyses.
 
 ## Development status (May 2026)
 
-- Latest completed validation pass (docs-focused): `devtools::test()`
-  **412/412 PASS**, `devtools::document()` clean, and all vignette `.Rmd`
-  files parse cleanly.
-- Active implementation track is the audit-driven TDD remediation plan
-  (Phase 0 to Phase 5).
-- Immediate next coding action is to create the Phase 0 calibration
-  helper and the first red boundary test (W-H1) before any new
-  production-code changes.
+- Latest completed validation pass: `devtools::test()` **434/434 PASS**,
+  `devtools::document()` clean, all vignette `.Rmd` files parse cleanly.
+- All audit-driven TDD remediation items (Phases 0–5) are implemented
+  on HEAD.  Remaining item: slow calibration tests require
+  `RAJIVE_RUN_SLOW=1`; submit via SLURM scripts in `logs/`.
+- **New in this cycle:**
+  - `jackstraw_rajive()` gains optional posterior inclusion probabilities
+    (`pip = TRUE`) via `qvalue::lfdr()`.
+  - Multiple-testing correction default changed from `"BH"` to `"BY"`
+    (Benjamini–Yekutieli), which is valid under arbitrary feature
+    dependence (no PRDS assumption).
 - Live handoff references:
   - [PROGRESS.md](PROGRESS.md) for the operational next command.
   - [PLANS.md](PLANS.md) for strategy, gates, and deferred items.

@@ -90,6 +90,54 @@ and either a random-direction bound (default) or a permutation bound
 practice but does not carry a formal FWER/FDR guarantee for rank
 selection (see \code{StatisticalAudits.md}, Finding 6).
 }
+\section{Robustness and Huber tuning}{
+
+The M-estimator at each block uses a fixed Huber threshold
+\code{huberk = 1.345}, which corresponds to 95\% asymptotic relative
+efficiency under a Gaussian reference.  This constant is appropriate for
+continuous-scale data (e.g. normalised gene expression, metabolomics).
+For count-overdispersed or heavy-tailed data (e.g. microbiome log-ratios,
+raw spectral intensities) where the nominal outlier fraction exceeds
+\eqn{\approx 20\%}, consider pre-transforming data or calling
+\code{\link{RobRSVD.all}} directly with a custom \code{k} argument.
+}
+
+\section{Block normalization}{
+
+\code{Rajive()} expects blocks to be column-centred.  Cross-block scale
+comparability (relevant for the joint-rank threshold) additionally
+requires Frobenius normalisation: \code{X <- X / norm(X, "F")} so that
+each block contributes equally to the stacked signal-score matrix.
+Omitting centring or normalisation does not error but will distort the
+joint-rank estimate and loadings in proportion to the raw scale
+differences (JIVE convention; see Lock et al. 2013,
+\emph{Ann. Appl. Statist.} 7(1):523--542).
+}
+
+\section{Permutation and paired designs}{
+
+When \code{n_perm_samples} is supplied, the joint-rank threshold is
+derived by independently permuting row order within each block's signal
+scores, which assumes exchangeability of observations.  This assumption
+holds for independent samples but is violated for paired, longitudinal,
+or otherwise structured designs (time series, family trios, matched
+controls).  For such designs, use \code{joint_rank} to fix the rank
+manually instead of relying on \code{n_perm_samples}.
+}
+
+\section{Joint-rank threshold (heuristic, no formal FWER/FDR)}{
+
+The joint rank is selected by comparing squared common singular values
+to \code{max(wedin_5\%, rand_dir_95\% | perm_95\%)}.  This rule is a
+heuristic: it has no formal FWER or FDR guarantee.  Under a global null
+(independent Gaussian blocks, 3 blocks, \eqn{n = 60}, \eqn{p_k} in
+\{50, 40, 30\}), calibration experiments find an empirical Type-I rate
+of approximately 2--8\% for \code{n_wedin_samples = n_rand_dir_samples =
+200}; the rate approaches 5\% from below as the sample count increases.
+See \code{StatisticalAudits.md}, Finding 6, and the package calibration
+test in \code{tests/testthat/test-calibration-joint-rank.R} for details.
+}
+
 \section{Reproducibility}{
 
 For exactly reproducible results, set \code{set.seed()} (and, for
