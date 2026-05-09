@@ -205,8 +205,8 @@ cll_fit <- Rajive(
   blocks               = blocks,
   initial_signal_ranks = c(15L, 10L, 10L),
   full                 = TRUE,
-  n_wedin_samples      = 1000L,
-  n_rand_dir_samples   = 1000L,
+  n_wedin_samples      = 100L,
+  n_rand_dir_samples   = 100L,
   joint_rank           = NA,
   num_cores            = 12L
 )

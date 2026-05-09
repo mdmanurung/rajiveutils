@@ -30,7 +30,8 @@ Suggests:
     pheatmap,
     ggrepel,
     patchwork,
-    remotes
+    remotes,
+    qvalue
 VignetteBuilder: knitr
 Imports: ggplot2,
 	doParallel,

@@ -17,11 +17,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Mikhael Manurung \email{m.d.manuurng@lumc.nl}
+\strong{Maintainer}: Mikhael Manurung \email{m.d.manurung@lumc.nl}
 
 Authors:
 \itemize{
-  \item Mikhael Manurung \email{m.d.manuurng@lumc.nl}
+  \item Mikhael Manurung \email{m.d.manurung@lumc.nl}
 }
 
 }

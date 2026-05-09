@@ -2,6 +2,23 @@
 
 ## New features
 
+- `jackstraw_rajive()` gains three new arguments for posterior inclusion
+  probabilities: `pip` (default `FALSE`), `pip_pi0`, and `pip_group`
+  (`"component"`, `"block_component"`, or `"pooled"`).  When `pip = TRUE`,
+  each block/component result list includes a `$pip` vector of per-feature
+  PIPs computed as `1 - qvalue::lfdr(p_values)`.  Requires the
+  **qvalue** Bioconductor package (Suggests).
+  Reference: Chung NC (2020). *Bioinformatics*, 36(10):3107–3114.
+
+## Changes in defaults
+
+- `jackstraw_rajive()`: default `correction` changed from `"BH"` to `"BY"`
+  (Benjamini--Yekutieli).  BY controls FDR under arbitrary dependency among
+  tests; BH requires positive regression dependency (PRDS).  Omics feature
+  blocks (with local correlation structure) can violate PRDS, making BH
+  anti-conservative.  Existing code that passed `correction = "BH"` explicitly
+  is unaffected.
+
 - Added `n_perm_samples` argument to `Rajive()` (default `NA`, no behaviour
   change). When non-NA, a non-parametric permutation-based joint-rank
   threshold is computed by independently permuting the row order of each

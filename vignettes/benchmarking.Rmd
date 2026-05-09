@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
   message   = FALSE,
   warning   = FALSE
 )
-run_heavy <- TRUE          # set to TRUE once to regenerate .rds cache files
+run_heavy <- FALSE         # set to TRUE once to regenerate .rds cache files
 data_dir  <- "data"        # relative to vignettes/
 ```
 

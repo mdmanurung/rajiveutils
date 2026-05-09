@@ -4,7 +4,7 @@ output: github_document
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-```{r}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -18,39 +18,71 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-rajiveplus (Robust Angle based Joint and Individual Variation Explained) is a robust alternative to the aJIVE method for the estimation of joint and individual components in the presence of outliers in multi-source data. It decomposes the multi-source data into joint, individual and residual (noise) contributions. The decomposition is robust with respect to outliers and other types of noises present in the data.
+**rajiveplus** is a fast, robust re-implementation of the
+Robust Angle-based Joint and Individual Variation Explained (RaJIVE)
+algorithm for multi-source / multi-omics data integration.
+
+- **Decomposes** a list of data matrices (matched samples, possibly
+  different feature spaces) into shared **joint**, block-specific
+  **individual**, and residual **noise** components.
+- **Robust** to a moderate fraction of element-wise outliers via an
+  M-estimator (Huber loss) in the SVD step.
+- **Fast**: the per-block robust SVD is implemented in C++ via
+  RcppArmadillo, with optional cross-platform parallelism.
+- **Interpretable**: ships with diagnostic plots, jackstraw
+  feature-significance testing, metadata association, and bootstrap
+  stability assessment.
+
+See the package website for the full
+[function reference](https://mdmanurung.github.io/rajiveplus/reference/)
+and the [vignettes](https://mdmanurung.github.io/rajiveplus/articles/)
+for benchmarks and applied analyses.
+
+## Development status (May 2026)
+
+- Latest completed validation pass (docs-focused): `devtools::test()`
+  **412/412 PASS**, `devtools::document()` clean, and all vignette `.Rmd`
+  files parse cleanly.
+- Active implementation track is the audit-driven TDD remediation plan
+  (Phase 0 to Phase 5).
+- Immediate next coding action is to create the Phase 0 calibration
+  helper and the first red boundary test (W-H1) before any new
+  production-code changes.
+- Live handoff references:
+  - [PROGRESS.md](PROGRESS.md) for the operational next command.
+  - [PLANS.md](PLANS.md) for strategy, gates, and deferred items.
 
 ## Installation
 
-You can install the released version of rajiveplus from [CRAN](https://CRAN.R-project.org) with:
+The development version of rajiveplus can be installed from
+[GitHub](https://github.com/mdmanurung/rajiveplus) with:
 
 ``` r
-install.packages("rajiveplus")
+# install.packages("remotes")
+remotes::install_github("mdmanurung/rajiveplus")
 ```
 
-And the development version from [GitHub](https://github.com/) with:
+## Quickstart
 
-``` r
-# install.packages("devtools")
-devtools::install_github("mdmanurung/rajiveplus")
-```
-## Example
-
-This is a basic example which shows how to use rajiveplus on simple simulated data: 
-
+The example below runs the full RaJIVE pipeline on simulated three-block
+data, then shows how to inspect ranks, scores, loadings, variance
+explained, and feature-level significance.
 
 ### Running robust aJIVE
 
 ```{r}
 library(rajiveplus)
-## basic example code
-n <- 50
-pks <- c(100, 80, 50)
-Y <- ajive.data.sim(K =3, rankJ = 3, rankA = c(7, 6, 4), n = n,
-                   pks = pks, dist.type = 1)
+set.seed(1)
 
-initial_signal_ranks <-  c(7, 6, 4)
-data.ajive <- list((Y$sim_data[[1]]), (Y$sim_data[[2]]), (Y$sim_data[[3]]))
+# Simulate three blocks (matched samples, different feature spaces) with
+# joint rank 3 and block-individual ranks (7, 6, 4).
+n   <- 50
+pks <- c(100, 80, 50)
+Y   <- ajive.data.sim(K = 3, rankJ = 3, rankA = c(7, 6, 4),
+                      n = n, pks = pks, dist.type = 1)
+
+data.ajive           <- Y$sim_data
+initial_signal_ranks <- c(7, 6, 4)
 ajive.results.robust <- Rajive(data.ajive, initial_signal_ranks)
 ```
 
@@ -311,3 +343,35 @@ knitr::include_graphics("man/figures/README-jackstraw-loadings-significance.png"
 | `summary.jackstraw_rajive()` | Return and print a `data.frame` summary of jackstraw results. |
 | `get_significant_vars()` | Extract significant variable names/indices for a given block and component from jackstraw results. |
 | `plot_jackstraw()` | Diagnostic plots for jackstraw results: p-value histogram, F-stat scatter plot, or loadings significance heatmap. |
+
+## Where to next
+
+- **Function reference:** every exported function is documented at
+  <https://mdmanurung.github.io/rajiveplus/reference/>.
+- **Vignettes** (under `vignettes/` and on the package website):
+  - `function_gallery` — short, runnable demos of every exported function.
+  - `benchmarking` — runtime / memory comparison vs the original
+    `RaJIVE` package.
+  - `jackstraw_scaling` — practical guide to choosing `n_null` for
+    `jackstraw_rajive()`.
+  - `cll_application` — end-to-end multi-omics integration on the CLL
+    cohort (Dietrich et al. 2018).
+  - `microbiome_application` — multi-kingdom gut microbiome integration
+    (Haak et al. 2021).
+
+## Interpretation notes
+
+A few caveats worth keeping in mind when interpreting `Rajive()` output;
+see `StatisticalAudits.md` and the function references for full details.
+
+- **Joint rank threshold** combines a Wedin bound with a random-direction
+  (or permutation) bound via `max()`. The rule is conservative in
+  practice but does not carry a formal FWER/FDR guarantee for rank
+  selection.
+- **Component scores are estimates**, not fixed design variables.
+  Downstream tests via `associate_components()` and `jackstraw_rajive()`
+  do not propagate score-estimation uncertainty and should be treated as
+  post-decomposition exploratory analyses.
+- For survival outcomes, prefer `split = "none"` (continuous-score Cox
+  model) for primary inference; median/tertile splits are
+  data-adaptive and may be anti-conservative.
