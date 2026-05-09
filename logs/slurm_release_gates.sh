@@ -23,8 +23,10 @@
 
 cd /exports/para-lipg-hpc/mdmanurung/RaJIVEutils
 
-source /exports/archive/hg-funcgenom-research/mdmanurung/conda/etc/profile.d/conda.sh
-conda activate R4_51
+if ! command -v conda >/dev/null 2>&1; then
+  echo "conda command not found on compute node"
+  exit 127
+fi
 
 echo "====== RELEASE GATE SEQUENCE START ======"
 echo "Timestamp: $(date)"
@@ -33,9 +35,13 @@ echo "Timestamp: $(date)"
 echo ""
 echo "GATE 1/4: devtools::test()"
 echo "==========================================="
-conda run -n R4_51 R --no-save -q -e "devtools::test()" 2>&1
+conda run -n R4_51 R --no-save -q -e "testthat::test_local(stop_on_failure = TRUE)" 2>&1
 TEST_EXIT=$?
 echo "Test exit code: $TEST_EXIT"
+if [ $TEST_EXIT -ne 0 ]; then
+  echo "✗ Gate 1 failed; aborting remaining gates."
+  exit $TEST_EXIT
+fi
 
 # Gate 2: Check
 echo ""
@@ -44,6 +50,10 @@ echo "==========================================="
 conda run -n R4_51 R --no-save -q -e "devtools::check(args = c('--no-manual'))" 2>&1
 CHECK_EXIT=$?
 echo "Check exit code: $CHECK_EXIT"
+if [ $CHECK_EXIT -ne 0 ]; then
+  echo "✗ Gate 2 failed; aborting remaining gates."
+  exit $CHECK_EXIT
+fi
 
 # Gate 3: Pkgdown
 echo ""
@@ -52,6 +62,10 @@ echo "==========================================="
 conda run -n R4_51 R --no-save -q -e "pkgdown::build_site(lazy = TRUE, preview = FALSE)" 2>&1
 PKG_EXIT=$?
 echo "Pkgdown exit code: $PKG_EXIT"
+if [ $PKG_EXIT -ne 0 ]; then
+  echo "✗ Gate 3 failed; aborting remaining gates."
+  exit $PKG_EXIT
+fi
 
 # Gate 4: Source install & load
 echo ""
@@ -68,6 +82,10 @@ conda run -n R4_51 R --no-save -q -e "
 " 2>&1
 INSTALL_EXIT=$?
 echo "Install exit code: $INSTALL_EXIT"
+if [ $INSTALL_EXIT -ne 0 ]; then
+  echo "✗ Gate 4 failed."
+  exit $INSTALL_EXIT
+fi
 
 # Summary
 echo ""
@@ -78,10 +96,5 @@ echo "Gate 3 (pkgdown):        $PKG_EXIT"
 echo "Gate 4 (install/load):   $INSTALL_EXIT"
 echo "Timestamp: $(date)"
 
-if [ $TEST_EXIT -eq 0 ] && [ $CHECK_EXIT -eq 0 ] && [ $PKG_EXIT -eq 0 ] && [ $INSTALL_EXIT -eq 0 ]; then
-  echo "✓ ALL GATES PASSED"
-  exit 0
-else
-  echo "✗ GATES FAILED (see above for details)"
-  exit 1
-fi
+echo "✓ ALL GATES PASSED"
+exit 0

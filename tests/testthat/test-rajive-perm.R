@@ -67,10 +67,10 @@ test_that("n_perm_samples populates joint_rank_sel$perm with expected fields", {
 
 
 # ===========================================================================
-# 3. perm replaces rand_dir (mutually exclusive)
+# 3. when both are supplied, perm and rand_dir are both computed
 # ===========================================================================
 
-test_that("when n_perm_samples is set, rand_dir is NOT computed", {
+test_that("when n_perm_samples is set with rand_dir requested, both are computed", {
   d <- make_blocks_perm(K = 2, n = 30, pks = c(20, 15),
                         rankJ = 2, rankA = c(4, 3), seed = 7003L)
 
@@ -82,7 +82,7 @@ test_that("when n_perm_samples is set, rand_dir is NOT computed", {
                 num_cores = 1L)
 
   expect_true(!is.null(res$joint_rank_sel$perm))
-  expect_null(res$joint_rank_sel$rand_dir)
+  expect_true(!is.null(res$joint_rank_sel$rand_dir))
 })
 
 
@@ -198,8 +198,8 @@ test_that("extract_components(what='rank_diagnostics') surfaces perm fields", {
   diag <- extract_components(res, what = "rank_diagnostics",
                              format = "wide")
   expect_true(diag$has_perm)
-  expect_false(diag$has_random)
+  expect_true(diag$has_random)
   expect_true(is.numeric(diag$perm_cutoff))
   expect_length(diag$perm_samples, 30L)
-  expect_match(diag$cutoff_rule, "perm", fixed = TRUE)
+  expect_match(diag$cutoff_rule, "max(wedin, random)", fixed = TRUE)
 })

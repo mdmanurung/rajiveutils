@@ -162,11 +162,11 @@ test_that("BH adjustment is applied globally across blocks and components", {
   expect_equal(observed_adj, expected_adj)
 })
 
-test_that("default correction is BY", {
+test_that("default correction is BH", {
   res <- make_simple_ajive(seed = 11L)
   js <- jackstraw_rajive(res$ajive_out, res$blocks, n_null = 5)
 
-  expect_identical(attr(js, "correction"), "BY")
+  expect_identical(attr(js, "correction"), "BH")
 })
 
 test_that("BY adjustment is applied globally across blocks and components", {
@@ -192,7 +192,7 @@ test_that("BY adjustment is applied globally across blocks and components", {
 # 5. Degenerate-feature guard (W-M10)
 # ---------------------------------------------------------------------------
 
-test_that("constant feature triggers degenerate-block error", {
+test_that("constant feature triggers degenerate-block warning and still returns", {
   set.seed(42)
   n  <- 60
   pks <- c(20, 15)
@@ -204,10 +204,12 @@ test_that("constant feature triggers degenerate-block error", {
   # Inject a constant column into block 1
   blocks[[1]][, 1] <- 7.0          # constant feature
 
-  expect_error(
+  fit <- expect_warning(
     Rajive(blocks, initial_signal_ranks = c(3, 3)),
     class = "rajiveplus_degenerate_block"
   )
+
+  expect_s3_class(fit, "rajive")
 })
 
 # ---------------------------------------------------------------------------
