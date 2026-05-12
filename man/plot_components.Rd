@@ -64,9 +64,9 @@ plots all components where applicable.}
 \item{group}{Optional grouping vector (length equal to the number of
 samples) or a column name in metadata used to colour points.}
 
-\item{style}{Optional named list of styling overrides (e.g.,
-\code{list(point_size = 1.5, alpha = 0.6)}) passed through to the
-underlying plot helpers.}
+\item{style}{Optional style selector or named list of styling overrides.
+For \code{plot_type = "association"}, supported styles are
+\code{"heatmap"} (default), \code{"forest"}, and \code{"uncertainty"}.}
 
 \item{top_n}{Integer. Number of top features to display in feature-ranking
 plot types (default \code{20L}).}

@@ -148,8 +148,8 @@ A \code{data.frame} with one row per variable x component
   combination and columns \code{variable}, \code{component}, \code{stat},
   \code{p_value}, \code{p_adj}, and \code{method}.  With
   \code{propagate_uncertainty = "bootstrap"}, columns \code{stability},
-  \code{effect_lo}, \code{effect_hi}, \code{p_median}, and
-  \code{p_adj_median} are appended.
+  \code{effect_lo}, \code{effect_hi}, \code{p_median},
+  \code{p_adj_median}, and \code{n_boot_valid} are appended.
 }
 \description{
 Tests for associations between estimated joint (or individual) component

@@ -631,6 +631,39 @@ test_that("J2: plot_components supports non-diagnostic plot types", {
   expect_true(inherits(plot_components(stability_result = stab, plot_type = "stability"), "ggplot"))
 })
 
+test_that("J2b: association plots support all-component identities and uncertainty", {
+  fx <- make_small_rajive_fixture(seed = 8201L)
+  metadata <- data.frame(marker = fx$fit$joint_scores[, 1L] + rnorm(12, sd = 0.1))
+
+  set.seed(8202L)
+  assoc_all <- suppressMessages(
+    associate_all_components(
+      fx$fit, metadata, variable = "marker",
+      mode = "continuous",
+      include = "both",
+      blocks_to_include = 1L,
+      propagate_uncertainty = "bootstrap",
+      blocks = fx$blocks,
+      initial_signal_ranks = fx$initial_signal_ranks,
+      B = 2L,
+      n_wedin_samples = NA,
+      n_rand_dir_samples = NA,
+      joint_rank = 1L
+    )
+  )
+
+  p_heat <- plot_components(assoc_results = assoc_all, plot_type = "association")
+  p_forest <- plot_components(assoc_results = assoc_all, plot_type = "association",
+                              style = "forest")
+  p_unc <- plot_components(assoc_results = assoc_all, plot_type = "association",
+                           style = "uncertainty")
+
+  expect_true(inherits(p_heat, "ggplot"))
+  expect_true(inherits(p_forest, "ggplot"))
+  expect_true(inherits(p_unc, "ggplot"))
+  expect_true(any(grepl("individual", p_heat$data$target)))
+})
+
 test_that("J3: export_results writes files", {
   td <- tempdir()
   p1 <- file.path(td, "exp_results.csv")

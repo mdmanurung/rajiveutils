@@ -350,9 +350,9 @@ extract_components <- function(ajive_output = NULL,
 #'   plots all components where applicable.
 #' @param group Optional grouping vector (length equal to the number of
 #'   samples) or a column name in metadata used to colour points.
-#' @param style Optional named list of styling overrides (e.g.,
-#'   \code{list(point_size = 1.5, alpha = 0.6)}) passed through to the
-#'   underlying plot helpers.
+#' @param style Optional style selector or named list of styling overrides.
+#'   For \code{plot_type = "association"}, supported styles are
+#'   \code{"heatmap"} (default), \code{"forest"}, and \code{"uncertainty"}.
 #' @param top_n Integer. Number of top features to display in feature-ranking
 #'   plot types (default \code{20L}).
 #' @param ... Additional arguments passed to the plot helpers:
@@ -1179,27 +1179,81 @@ plot_components <- function(ajive_output = NULL,
   miss <- setdiff(req, names(assoc_results))
   if (length(miss) > 0L) stop("assoc_results missing columns: ", paste(miss, collapse = ", "), call. = FALSE)
 
-  st <- if (is.null(style)) "heatmap" else style
+  st <- if (is.null(style)) {
+    "heatmap"
+  } else if (is.list(style)) {
+    if (is.null(style$plot)) "heatmap" else style$plot
+  } else {
+    style
+  }
   if (identical(st, "forest")) {
     d <- assoc_results
+    d$target <- .association_target_label(d)
+    d$row_label <- paste0(d$variable, " | ", d$target)
     d$neglog10 <- -log10(pmax(d$p_adj, .Machine$double.eps))
     return(
       ggplot2::ggplot(d, ggplot2::aes(x = .data$neglog10,
-                                      y = paste0(.data$variable, " (C", .data$component, ")"))) +
+                                      y = stats::reorder(.data$row_label, .data$neglog10))) +
         ggplot2::geom_point() + ggplot2::theme_bw() +
-        ggplot2::labs(x = "-log10(adj p)", y = "Association", title = "Association forest")
+        ggplot2::labs(x = "-log10(adj p)", y = "Association",
+                      title = "Association p-value forest")
+    )
+  }
+  if (identical(st, "uncertainty")) {
+    d <- assoc_results
+    req_unc <- c("stat", "effect_lo", "effect_hi", "stability", "n_boot_valid")
+    miss_unc <- setdiff(req_unc, names(d))
+    if (length(miss_unc) > 0L) {
+      stop("assoc_results missing bootstrap uncertainty columns: ",
+           paste(miss_unc, collapse = ", "), call. = FALSE)
+    }
+    d$target <- .association_target_label(d)
+    d$row_label <- paste0(d$variable, " | ", d$target)
+    return(
+      ggplot2::ggplot(d, ggplot2::aes(y = stats::reorder(.data$row_label, .data$stat))) +
+        ggplot2::geom_segment(ggplot2::aes(x = .data$effect_lo,
+                                           xend = .data$effect_hi,
+                                           yend = stats::reorder(.data$row_label, .data$stat)),
+                              linewidth = 0.6, color = "grey55", na.rm = TRUE) +
+        ggplot2::geom_point(ggplot2::aes(x = .data$stat,
+                                         color = .data$stability,
+                                         size = .data$n_boot_valid),
+                            na.rm = TRUE) +
+        ggplot2::scale_color_gradient(low = "#bdbdbd", high = "#2166ac",
+                                      limits = c(0, 1), na.value = "grey70") +
+        ggplot2::theme_bw() +
+        ggplot2::labs(x = "Effect estimate with bootstrap interval",
+                      y = "Association",
+                      color = "Stability",
+                      size = "Valid refits",
+                      title = "Association bootstrap uncertainty")
     )
   }
 
   d <- assoc_results
+  d$target <- .association_target_label(d)
   d$neglog10 <- -log10(pmax(d$p_adj, .Machine$double.eps))
-  ggplot2::ggplot(d, ggplot2::aes(x = factor(.data$component), y = .data$variable,
+  ggplot2::ggplot(d, ggplot2::aes(x = .data$target, y = .data$variable,
                                   fill = .data$neglog10)) +
     ggplot2::geom_tile() +
     ggplot2::scale_fill_gradient(low = "white", high = "#2166ac") +
     ggplot2::theme_bw() +
-    ggplot2::labs(x = "Component", y = "Variable", fill = "-log10(adj p)",
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
+    ggplot2::labs(x = "Score target", y = "Variable", fill = "-log10(adj p)",
                   title = "Component-metadata associations")
+}
+
+.association_target_label <- function(d) {
+  if (!all(c("source", "block") %in% names(d))) {
+    return(paste0("C", d$component))
+  }
+  source <- as.character(d$source)
+  block <- d$block
+  ifelse(
+    source == "joint",
+    paste0("joint C", d$component),
+    paste0("block ", block, " individual C", d$component)
+  )
 }
 
 .plot_jackstraw_volcano <- function(jackstraw_result, block, component) {
@@ -1343,8 +1397,8 @@ plot_components <- function(ajive_output = NULL,
 #'   combination and columns \code{variable}, \code{component}, \code{stat},
 #'   \code{p_value}, \code{p_adj}, and \code{method}.  With
 #'   \code{propagate_uncertainty = "bootstrap"}, columns \code{stability},
-#'   \code{effect_lo}, \code{effect_hi}, \code{p_median}, and
-#'   \code{p_adj_median} are appended.
+#'   \code{effect_lo}, \code{effect_hi}, \code{p_median},
+#'   \code{p_adj_median}, and \code{n_boot_valid} are appended.
 #'
 #' @examples
 #' \donttest{
@@ -1442,19 +1496,11 @@ associate_components <- function(ajive_output,
 
   # --- extract scores ---
   if (is.null(scores)) {
-    if (type == "joint") {
-      sc <- ajive_output$joint_scores
-      if (is.null(sc))
-        stop("Joint scores not found in `ajive_output`. ",
-             "Was `Rajive()` run with a positive joint rank?", call. = FALSE)
-    } else {
-      if (is.null(block))
-        stop("`block` must be specified when `type = \"individual\"`.",
-             call. = FALSE)
-      sc <- ajive_output$block_decomps[[3L * (as.integer(block) - 1L) + 1L]]$u
-      if (is.null(sc))
-        stop("Individual scores not found for block ", block, ".", call. = FALSE)
-    }
+    K <- length(ajive_output$block_decomps) %/% 3L
+    .validate_bootstrap_score_request(type, block, K)
+    sc <- .extract_score_matrix(ajive_output, type, block)
+    if (is.null(sc))
+      stop("Requested scores not found in `ajive_output`.", call. = FALSE)
     scores <- sc
   }
 
@@ -1504,10 +1550,6 @@ associate_components <- function(ajive_output,
            "`propagate_uncertainty = \"bootstrap\"` and `replicates` is NULL.",
            call. = FALSE)
     }
-    if (type != "joint") {
-      stop("Automatic bootstrap propagation currently supports joint scores only. ",
-           "Supply `replicates` for custom score arrays.", call. = FALSE)
-    }
     replicates <- .rajive_bootstrap(
       ajive_output = ajive_output,
       blocks = blocks,
@@ -1517,6 +1559,8 @@ associate_components <- function(ajive_output,
       strata = strata,
       num_cores = num_cores,
       keep = "scores",
+      score_type = type,
+      score_block = block,
       ...
     )
   }
@@ -1559,6 +1603,7 @@ associate_components <- function(ajive_output,
                                              adjust) {
   B <- dim(score_reps)[3L]
   stability <- effect_lo <- effect_hi <- p_median <- rep(NA_real_, nrow(out))
+  n_boot_valid <- integer(nrow(out))
 
   for (r in seq_len(nrow(out))) {
     v <- out$variable[[r]]
@@ -1582,6 +1627,7 @@ associate_components <- function(ajive_output,
     }
 
     good_p <- is.finite(p_b)
+    n_boot_valid[[r]] <- sum(good_p)
     if (any(good_p)) {
       stability[[r]] <- mean(p_b[good_p] < alpha_stability)
       p_median[[r]] <- stats::median(p_b[good_p])
@@ -1601,8 +1647,182 @@ associate_components <- function(ajive_output,
     effect_hi = effect_hi,
     p_median = p_median,
     p_adj_median = stats::p.adjust(p_median, method = adjust),
+    n_boot_valid = n_boot_valid,
     stringsAsFactors = FALSE
   )
+}
+
+.associate_all_targets <- function(ajive_output, include, blocks_to_include) {
+  include <- match.arg(include, c("both", "joint", "individual"))
+  K <- length(ajive_output$block_decomps) %/% 3L
+  rows <- list()
+
+  add_target <- function(source, block) {
+    key <- if (source == "joint") "joint" else paste0("individual_block_", block)
+    rows[[length(rows) + 1L]] <<- data.frame(
+      source = source,
+      block = if (is.null(block)) NA_integer_ else as.integer(block),
+      key = key,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  if (include %in% c("both", "joint")) {
+    sc <- .extract_score_matrix(ajive_output, "joint", NULL)
+    if (!is.null(sc) && ncol(sc) > 0L) {
+      add_target("joint", NULL)
+    } else {
+      message("[associate_all_components] NOTE: Skipping zero-rank joint score target.")
+    }
+  }
+
+  if (include %in% c("both", "individual")) {
+    block_ids <- if (is.null(blocks_to_include)) seq_len(K) else as.integer(blocks_to_include)
+    if (any(is.na(block_ids)) || any(block_ids < 1L) || any(block_ids > K)) {
+      stop("`blocks_to_include` must contain valid block indices.", call. = FALSE)
+    }
+    for (block_id in block_ids) {
+      sc <- .extract_score_matrix(ajive_output, "individual", block_id)
+      if (!is.null(sc) && ncol(sc) > 0L) {
+        add_target("individual", block_id)
+      } else {
+        message("[associate_all_components] NOTE: Skipping zero-rank individual score target for block ",
+                block_id, ".")
+      }
+    }
+  }
+
+  if (length(rows) == 0L) {
+    stop("No positive-rank score targets were available.", call. = FALSE)
+  }
+  do.call(rbind, rows)
+}
+
+#' Associate all joint and individual component scores with metadata
+#'
+#' Screens sample metadata associations across joint scores and block-specific
+#' individual scores from a \code{\link{Rajive}} decomposition.  This is a
+#' convenience wrapper around \code{\link{associate_components}} that returns a
+#' single tidy table with explicit score-family identity.
+#'
+#' @inheritParams associate_components
+#' @param include Character scalar. \code{"both"} (default) tests joint and
+#'   individual scores, \code{"joint"} tests joint scores only, and
+#'   \code{"individual"} tests individual scores only.
+#' @param blocks_to_include Optional integer vector of block indices to screen
+#'   for individual scores. \code{NULL} uses all positive-rank individual
+#'   blocks.
+#'
+#' @return A \code{data.frame} with columns \code{source}, \code{block},
+#'   \code{variable}, \code{component}, \code{stat}, \code{p_value},
+#'   \code{p_adj}, and \code{method}.  With
+#'   \code{propagate_uncertainty = "bootstrap"}, bootstrap uncertainty columns
+#'   from \code{\link{associate_components}} are appended.  P-value adjustment
+#'   is recomputed across the combined table.
+#'
+#' @section Bootstrap interpretation:
+#' Automatic bootstrap propagation aligns each score family to its own
+#' full-data fitted basis before associations are recomputed.  Individual score
+#' summaries are therefore basis-conditional and can be rotation-sensitive when
+#' block-specific individual singular values are close.  Use
+#' \code{n_boot_valid} to check how many bootstrap refits contributed to each
+#' row.
+#'
+#' @export
+associate_all_components <- function(ajive_output,
+                                     metadata,
+                                     variable = NULL,
+                                     variables = NULL,
+                                     mode = c("continuous", "categorical",
+                                              "survival", "batch"),
+                                     method = NULL,
+                                     adjust = "BH",
+                                     time_col = NULL,
+                                     status_col = NULL,
+                                     split = c("none", "median", "tertile"),
+                                     include = c("both", "joint", "individual"),
+                                     blocks_to_include = NULL,
+                                     propagate_uncertainty = c("none", "bootstrap"),
+                                     B = 200L,
+                                     level = 0.95,
+                                     alpha_stability = 0.05,
+                                     blocks = NULL,
+                                     initial_signal_ranks = NULL,
+                                     cluster = NULL,
+                                     strata = NULL,
+                                     num_cores = 1L,
+                                     ...) {
+  mode <- match.arg(mode)
+  split <- match.arg(split)
+  include <- match.arg(include)
+  propagate_uncertainty <- match.arg(propagate_uncertainty)
+
+  targets <- .associate_all_targets(ajive_output, include, blocks_to_include)
+
+  if (propagate_uncertainty == "bootstrap" &&
+      (is.null(blocks) || is.null(initial_signal_ranks))) {
+    stop("`blocks` and `initial_signal_ranks` are required when ",
+         "`propagate_uncertainty = \"bootstrap\"`.", call. = FALSE)
+  }
+
+  reps <- NULL
+  if (propagate_uncertainty == "bootstrap") {
+    reps <- .rajive_bootstrap_scores_multi(
+      ajive_output = ajive_output,
+      blocks = blocks,
+      initial_signal_ranks = initial_signal_ranks,
+      targets = targets,
+      B = B,
+      cluster = cluster,
+      strata = strata,
+      num_cores = num_cores,
+      ...
+    )
+  }
+
+  pieces <- vector("list", nrow(targets))
+  for (i in seq_len(nrow(targets))) {
+    tp <- targets$source[[i]]
+    block_i <- if (is.na(targets$block[[i]])) NULL else targets$block[[i]]
+    target_reps <- if (is.null(reps)) NULL else reps[[targets$key[[i]]]]
+    prop_i <- if (is.null(target_reps)) "none" else "bootstrap"
+
+    tbl <- suppressMessages(
+      associate_components(
+        ajive_output = ajive_output,
+        metadata = metadata,
+        variable = variable,
+        variables = variables,
+        mode = mode,
+        method = method,
+        adjust = adjust,
+        time_col = time_col,
+        status_col = status_col,
+        split = split,
+        type = tp,
+        block = block_i,
+        propagate_uncertainty = prop_i,
+        level = level,
+        alpha_stability = alpha_stability,
+        replicates = target_reps
+      )
+    )
+    tbl <- data.frame(
+      source = targets$source[[i]],
+      block = targets$block[[i]],
+      tbl,
+      check.names = FALSE
+    )
+    pieces[[i]] <- tbl
+  }
+
+  out <- do.call(rbind, pieces)
+  rownames(out) <- NULL
+  out$p_adj <- stats::p.adjust(out$p_value, method = adjust)
+  if ("p_median" %in% names(out)) {
+    out$p_adj_median <- stats::p.adjust(out$p_median, method = adjust)
+  }
+  out
 }
 
 

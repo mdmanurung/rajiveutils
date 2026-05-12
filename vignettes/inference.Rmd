@@ -1,5 +1,5 @@
 ---
-title: "Bootstrap Inference on Simulated RaJIVE Data"
+title: "Inference for Joint Structure in Simulated RaJIVE Data"
 author: "rajiveplus package authors"
 date: "`r Sys.Date()`"
 output:
@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 2
 vignette: >
-  %\VignetteIndexEntry{Bootstrap Inference on Simulated RaJIVE Data}
+  %\VignetteIndexEntry{Inference for Joint Structure in Simulated RaJIVE Data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -23,15 +23,23 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette is a compact end-to-end check of the inference helpers added on
-top of `Rajive()`. It uses simulated data and intentionally small bootstrap
-counts so it can run during package tests. Increase `B` for real analyses.
+The decomposition of multiview data into shared and view-specific structure is
+useful only to the extent that the resulting components can be interpreted. A
+joint component may be visually convincing, yet its rank, its feature loadings
+and its association with an external variable remain estimates. In practice,
+these estimates vary with the samples that happen to be observed.
+
+Here we use a small simulated data set to show how `rajiveplus` places
+uncertainty around the main quantities reported by `Rajive()`. The bootstrap
+counts are kept deliberately small so that the vignette can be checked with the
+package. Larger values of `B` should be used when the intervals themselves are
+part of a scientific analysis.
 
 ```{r setup}
 library(rajiveplus)
 ```
 
-## Simulate and Fit
+## Simulate and fit
 
 ```{r simulate-fit}
 set.seed(101)
@@ -55,12 +63,15 @@ stopifnot(inherits(fit, "rajive"))
 stopifnot(fit$joint_rank == 1L)
 ```
 
-## Feature-Level Variance Partition
+## Feature-level variance partition
 
-`joint_variance_partition()` reports how much of each feature's sum of squares
-is attributed to joint, individual, and residual structure. The residual is
-computed from the original data minus reconstructed joint and individual
-matrices, so the original `blocks` are required.
+One interpretation of a RaJIVE fit is that each feature contains a mixture of
+shared signal, block-specific signal and residual variation. The function
+`joint_variance_partition()` makes this interpretation explicit by assigning
+each feature's sum of squares to the joint, individual and residual terms. The
+residual term is computed after reconstructing the fitted joint and individual
+matrices, and therefore the original data blocks are supplied along with the
+fit.
 
 ```{r variance-partition}
 vp <- joint_variance_partition(fit, blocks)
@@ -70,11 +81,15 @@ stopifnot(all(c("joint_prop", "individual_prop", "residual_prop") %in% names(vp)
 stopifnot(all(is.finite(vp$joint_prop)))
 ```
 
-## Loading Confidence Intervals
+## Loading confidence intervals
 
-Bootstrap loading intervals are aligned to the full-data loading matrix before
-summarisation. These are entry-wise intervals; loading directions and subspaces
-remain the statistically safer interpretation when components are near-tied.
+Feature loadings are often the first route from a latent component back to
+biology. The difficulty is that a loading is not fixed by the algorithm alone:
+it also depends on the sampled cells or specimens. The bootstrap samples below
+refit the model and align each result to the loading matrix estimated from the
+full data before intervals are formed. The intervals are entry-wise summaries,
+so nearly tied components should still be interpreted at the level of directions
+or subspaces rather than as isolated coefficients.
 
 ```{r loading-ci}
 set.seed(102)
@@ -97,11 +112,14 @@ stopifnot(all(c("lower", "upper", "ci_method") %in% names(load_tbl)))
 plot_components(fit, plot_type = "loading_ci", ci = ci_load, top_n = 25L)
 ```
 
-## BCa Rank Interval
+## BCa rank interval
 
-BCa intervals use delete-one observation jackknife acceleration, or delete-one
-cluster acceleration when `cluster` is supplied. This is more expensive than
-percentile intervals because it refits `Rajive()` for every jackknife deletion.
+The selected joint rank is also an estimate. A percentile interval describes
+the empirical bootstrap distribution, while a BCa interval additionally uses a
+jackknife estimate of acceleration. For observation-level data this means
+leaving out one sample at a time; when a cluster label is supplied, the same
+principle is applied to clusters. The price is computational, because the model
+must be refit for each jackknife deletion.
 
 ```{r rank-bca}
 set.seed(103)
@@ -118,12 +136,15 @@ stopifnot(ci_rank$method == "bca")
 stopifnot(is.finite(ci_rank$lower), is.finite(ci_rank$upper))
 ```
 
-## Score-Uncertainty Propagation
+## Score-uncertainty propagation
 
-`associate_components()` still returns the point-estimate association p-value.
-With `propagate_uncertainty = "bootstrap"`, it also reports the fraction of
-bootstrap score refits that remain significant, a bootstrap effect-size interval,
-and the median bootstrap p-value.
+Associations between component scores and metadata are commonly used to attach
+phenotype to a latent axis. Such an association is conditional on the estimated
+scores. With `propagate_uncertainty = "bootstrap"`, `associate_components()`
+keeps the usual point-estimate p value and adds three summaries from bootstrap
+refits: the fraction of refits that remain significant, an interval for the
+effect size, the median bootstrap p value, and the number of valid bootstrap
+refits contributing to each row.
 
 ```{r association-propagation}
 set.seed(104)
@@ -143,5 +164,49 @@ assoc <- associate_components(
 )
 assoc
 
-stopifnot(all(c("stability", "effect_lo", "effect_hi", "p_median") %in% names(assoc)))
+stopifnot(all(c("stability", "effect_lo", "effect_hi", "p_median",
+                "n_boot_valid") %in% names(assoc)))
+```
+
+For screening across the whole decomposition, `associate_all_components()`
+keeps joint and block-specific individual score families explicit. Bootstrap
+replicates for each family are aligned to that family's full-data fitted basis;
+individual component summaries should therefore be read as basis-conditional
+sensitivity summaries rather than formal post-selection inference.
+
+```{r association-all-components}
+set.seed(105)
+metadata_i <- data.frame(marker = fit$block_decomps[[1L]]$u[, 1L] +
+                           rnorm(n, sd = 0.05))
+
+assoc_all <- associate_all_components(
+  fit, metadata_i,
+  variable = "marker",
+  mode = "continuous",
+  include = "both",
+  blocks_to_include = 1L,
+  propagate_uncertainty = "bootstrap",
+  blocks = blocks,
+  initial_signal_ranks = c(2L, 2L),
+  B = 6L,
+  joint_rank = 2L,
+  n_wedin_samples = NA,
+  n_rand_dir_samples = NA
+)
+assoc_all
+
+stopifnot(all(c("source", "block", "stability", "n_boot_valid") %in%
+                names(assoc_all)))
+```
+
+The association table can be visualized either as an adjusted-p-value heatmap
+or, when bootstrap propagation is available, as an uncertainty forest showing
+the point-estimate effect, bootstrap effect interval, stability, and number of
+valid refits.
+
+```{r association-visualization, fig.width=7, fig.height=4}
+plot_components(assoc_results = assoc_all, plot_type = "association")
+
+plot_components(assoc_results = assoc_all, plot_type = "association",
+                style = "uncertainty")
 ```
