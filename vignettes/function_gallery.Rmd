@@ -1,5 +1,5 @@
 ---
-title: "Function Gallery: rajiveplus API Showcase"
+title: "A Guided Tour of the rajiveplus API"
 author: "rajiveplus package authors"
 date: "`r Sys.Date()`"
 output:
@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 2
 vignette: >
-  %\VignetteIndexEntry{Function Gallery: rajiveplus API Showcase}
+  %\VignetteIndexEntry{A Guided Tour of the rajiveplus API}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -26,19 +26,17 @@ data_dir  <- "data"
 ```
 
 
-## Overview
+## The question
 
-This gallery showcases every exported user-facing function in **rajiveplus**
-using a lightweight three-block simulation so all examples run quickly. For a
-real-data application see `vignette("cll_application")`.
+What can you ask of a fitted RaJIVE model? This gallery walks through the
+exported user-facing functions in **rajiveplus** using one small three-block
+simulation. The example is deliberately light so the whole tour can run quickly;
+for a biological analysis, see `vignette("cll_application")`.
 
-Each section follows the same structure:
+Each stop follows the same rhythm: fit or extract one object, inspect the
+output, then say what scientific question the output can answer.
 
-> **Function name** – why you need it  
-> *Code example*  
-> *Interpretation: what to expect*
-
-### Gallery Roadmap
+### Roadmap
 
 | Category | Functions |
 |---|---|
@@ -149,9 +147,9 @@ stab_comp  <- cache$stab_comp
 
 ## `ajive.data.sim()`
 
-Generates synthetic multi-block data with known joint and individual ranks.
-Essential for testing and benchmarking: ground-truth decomposition structure
-is accessible.
+Synthetic data give us a model with known structure. That makes it possible to
+check whether a function is recovering the planted joint and individual ranks
+rather than merely producing plausible-looking output.
 
 ```{r}
 set.seed(7)
@@ -170,9 +168,9 @@ cat("Block 1 dimensions:   ", dim(sim2$sim_data[[1]]), "\n")
 ```
 
 
-**Interpretation.** `sim_data` is a list of K matrices (samples x features).
-`rankJ_true` and `rankA_true` record the planted ground-truth ranks for
-benchmarking recovery performance.
+**What to look for.** `sim_data` is a list of K sample-by-feature matrices.
+`rankJ_true` and `rankA_true` record the planted ranks, which become the truth
+set for recovery checks.
 
 ---
 
@@ -180,8 +178,8 @@ benchmarking recovery performance.
 
 ## `Rajive()`
 
-The main function. Decomposes each block into **joint** (shared), **individual**
-(block-specific), and **noise** components using robust angle-based JIVE.
+`Rajive()` is the central decomposition. It separates each block into shared
+joint structure, block-specific individual structure, and residual noise.
 
 ```{r}
 fit_demo <- Rajive(
@@ -196,16 +194,16 @@ fit_demo <- Rajive(
 ```
 
 
-**Interpretation.** Returns a `rajive` S3 object. Set `joint_rank = NA` for
-automatic rank estimation. Increase `n_wedin_samples` for a more precise Wedin
-bound. The `initial_signal_ranks` vector should be set conservatively above the
-expected rank per block.
+**What to look for.** The result is a `rajive` S3 object. Use
+`joint_rank = NA` when the rank should be estimated. Choose
+`initial_signal_ranks` conservatively above the expected signal rank in each
+block, because this is the search space from which joint structure is found.
 
 ---
 
 ## `Rajive()` — permutation-based rank selection (`n_perm_samples`)
 
-### What it does
+### What it changes
 
 The default rank-selection pipeline combines two bounds:
 
@@ -214,13 +212,12 @@ The default rank-selection pipeline combines two bounds:
 2. **Random-direction bound** — projects random Gaussian vectors through the
    signal subspaces to characterise the null distribution parametrically.
 
-`n_perm_samples` adds a **non-parametric alternative** to the random-direction
-step. For each permutation draw, the row order of every block's signal scores
-is independently shuffled, the blocks are stacked, and the leading squared
-singular value is recorded. The 95th percentile of these draws becomes the
-permutation threshold.
+`n_perm_samples` adds a non-parametric alternative to the random-direction
+step. In each draw, every block's signal scores are row-shuffled, the blocks
+are stacked, and the leading squared singular value is recorded. The 95th
+percentile becomes the permutation threshold.
 
-### When to prefer it
+### When to use it
 
 | Scenario | Recommendation |
 |---|---|
@@ -256,7 +253,7 @@ cat("Estimated joint rank:", fit_perm$joint_rank, "\n")
 ```
 
 
-**Interpretation.** `fit_perm$joint_rank_sel$perm` contains two elements:
+**What to look for.** `fit_perm$joint_rank_sel$perm` contains two elements:
 `perm_samples` (the vector of `n_perm_samples` squared singular values) and
 `perm_svsq_threshold` (the 95th percentile used as the null cut-off). The
 combined threshold is `max(wedin_threshold, perm_threshold)` — a conservative
@@ -270,7 +267,7 @@ plot_components(fit_perm, plot_type = "ajive_diagnostic")
 ```
 
 
-The diagnostic panel shows three elements:
+The diagnostic panel puts the decision on one page:
 
 - **Observed squared singular values** (dots) with the rank cut-off (vertical
   dashed line).
@@ -284,9 +281,10 @@ threshold; the overall cut-off (dashed red line on the SV plot) is their maximum
 
 ### Reproducibility
 
-Permutation draws use R's global RNG. Set `set.seed()` before calling `Rajive()`
-for reproducible results. The draws are also stored in `fit$joint_rank_sel$perm$perm_samples`,
-allowing post-hoc inspection without re-running.
+Permutation draws use R's global RNG. Set `set.seed()` before calling
+`Rajive()` when the draws must be reproducible. The samples are also stored in
+`fit$joint_rank_sel$perm$perm_samples`, so the null can be inspected later
+without refitting.
 
 ---
 
@@ -299,8 +297,9 @@ print(fit)
 ```
 
 
-**Interpretation.** Number of blocks, estimated joint rank, and individual rank
-per block. A joint rank of 0 means no shared signal was detected.
+**What to look for.** The print method gives the number of blocks, the
+estimated joint rank, and the individual rank per block. A joint rank of 0
+means the fit did not detect shared signal.
 
 ---
 
@@ -311,8 +310,8 @@ summary(fit)
 ```
 
 
-**Interpretation.** Returns a tidy `data.frame` with one row per block showing
-`joint_rank` and `individual_rank`. Use for inspection before extraction.
+**What to look for.** The summary is a tidy one-row-per-block table. It is the
+quick sanity check before extracting scores, loadings, or matrices.
 
 ---
 
@@ -347,8 +346,8 @@ knitr::kable(rank_tbl, caption = "All block ranks")
 ```
 
 
-**Interpretation.** Combines `get_joint_rank()` and per-block
-`get_individual_rank()` into one data frame for reporting.
+**What to look for.** This combines the shared rank and each block's individual
+rank into one reportable table.
 
 ---
 
@@ -363,9 +362,9 @@ print(round(head(J_scores, 4), 3))
 ```
 
 
-**Interpretation.** Each column is one joint factor; each row is one sample.
-These are estimated quantities — downstream p-values do not account for score
-estimation error (treat results as exploratory).
+**What to look for.** Each column is one joint factor and each row is one
+sample. These scores are estimated, so downstream association p-values should
+be read as exploratory unless uncertainty is propagated.
 
 ---
 
@@ -389,9 +388,9 @@ cat("Block 1 joint loadings (features x components):", dim(bl1_load), "\n")
 ```
 
 
-**Interpretation.** High absolute loading → feature strongly associated with
-the component. Use `jackstraw_rajive()` for formal significance rather than raw
-loading magnitude.
+**What to look for.** Large absolute loadings mark features aligned with the
+component. For feature-level significance, use `jackstraw_rajive()` rather than
+the raw loading rank alone.
 
 ---
 
@@ -405,9 +404,9 @@ cat("Reconstruction error:", round(max(abs(blocks[[1]] - J1 - I1 - E1)), 6), "\n
 ```
 
 
-**Interpretation.** J + I + E ≈ original matrix. The joint matrix captures
-shared cross-block structure; individual captures block-unique signal; noise is
-the remainder.
+**What to look for.** The joint, individual, and noise matrices reconstruct the
+original block. The split lets you ask whether a pattern is shared across
+blocks or belongs mainly to one block.
 
 ---
 
@@ -424,8 +423,8 @@ cat("Joint rank estimate:", diag_wide$joint_rank_estimate, "\n")
 ```
 
 
-**Interpretation.** Overall threshold = `max(wedin_cutoff, rand_cutoff)`;
-this empirical rule is not a formal FWER/FDR guarantee.
+**What to look for.** The overall threshold is `max(wedin_cutoff, rand_cutoff)`.
+It is a useful empirical rule, not a formal FWER or FDR guarantee.
 
 ---
 
@@ -490,8 +489,8 @@ if (requireNamespace("reshape2", quietly = TRUE)) {
 ```
 
 
-**Interpretation.** Color gradients reveal overall variation patterns.
-Distinct bands across samples suggest latent structure.
+**What to look for.** Coherent color bands across samples point to latent
+structure before decomposition.
 
 ---
 
@@ -505,9 +504,9 @@ if (requireNamespace("cowplot", quietly = TRUE) &&
 ```
 
 
-**Interpretation.** Four panels (original, joint, individual, noise). The joint
-row should look structurally similar across all blocks; the noise row should
-resemble random variation.
+**What to look for.** The four panels separate original, joint, individual, and
+noise signal. Shared structure should appear in the joint panels across blocks;
+the noise panels should be comparatively featureless.
 
 ---
 
@@ -532,9 +531,9 @@ plot_variance_explained(fit, blocks)
 ```
 
 
-**Interpretation.** Stacked bars show joint (blue), individual (light blue),
-and residual (red) proportions per block. Blocks with high joint proportion
-are strongly integrated with the shared signal.
+**What to look for.** Blocks with a large joint fraction are strongly tied to
+the shared signal; blocks with large individual fractions carry more
+view-specific biology.
 
 ---
 
@@ -554,8 +553,8 @@ if (jr >= 2) {
 ```
 
 
-**Interpretation.** Separation of groups along an axis indicates the component
-captures variation correlated with that grouping variable.
+**What to look for.** Group separation along a score axis suggests the latent
+component tracks that metadata variable.
 
 ---
 
@@ -577,8 +576,8 @@ plot_components(fit, plot_type = "density", type = "joint",
 ```
 
 
-**Interpretation.** Bimodal densities suggest discrete structure; unimodal
-indicates a continuous gradient.
+**What to look for.** Bimodal densities suggest discrete sample structure.
+Unimodal densities point more toward a continuous gradient.
 
 ---
 
@@ -592,8 +591,9 @@ plot_components(fit, plot_type = "rank_threshold") +
 ```
 
 
-**Interpretation.** Squared singular values above the dashed line are
-classified as joint. A clear elbow gap indicates stable rank estimation.
+**What to look for.** Squared singular values above the dashed line are called
+joint. A visible gap around the cutoff is more reassuring than a borderline
+crossing.
 
 ---
 
@@ -604,8 +604,8 @@ plot_components(fit, plot_type = "bound_distributions")
 ```
 
 
-**Interpretation.** Histograms of Wedin and random-direction bound samples.
-A narrow distribution indicates a stable threshold.
+**What to look for.** Narrow bound distributions give a stable threshold;
+wide or overlapping distributions suggest the rank decision is fragile.
 
 ---
 
@@ -618,8 +618,9 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 ```
 
 
-**Interpretation.** The composite first-look diagnostic. Review whether joint
-components clearly exceed both cutoffs and whether bounds are well-separated.
+**What to look for.** This is the first diagnostic to inspect. Joint components
+should clear both cutoffs, and the bound distributions should not make the
+decision look accidental.
 
 ---
 
@@ -633,8 +634,8 @@ plot_components(fit, plot_type = "top_features", type = "joint",
 ```
 
 
-**Interpretation.** Features at the top drive joint variation most strongly.
-Do not treat ranking alone as significance — use `jackstraw_rajive()`.
+**What to look for.** The top features drive the plotted component most
+strongly. Treat this as ranking, not as significance.
 
 ---
 
@@ -646,8 +647,8 @@ plot_components(fit, plot_type = "component_heatmap", type = "joint",
 ```
 
 
-**Interpretation.** Clusters of features with consistent loading patterns
-across components suggest correlated feature modules.
+**What to look for.** Groups of features with similar loading patterns suggest
+modules that move together across the component.
 
 ---
 
@@ -671,8 +672,8 @@ head(tidy_fit, 3)
 ```
 
 
-**Interpretation.** One row per sample per joint component. Suitable for
-direct use in `ggplot2` and `dplyr` without manual reshaping.
+**What to look for.** `fortify()` returns one row per sample per joint
+component, ready for `ggplot2` or `dplyr`.
 
 ---
 
@@ -688,8 +689,9 @@ knitr::kable(head(top20, 10), digits = 4,
 ```
 
 
-**Interpretation.** High absolute loading = strong driver of joint variation in
-this block. Use `jackstraw_rajive()` for formal significance.
+**What to look for.** High absolute loadings are the strongest component
+drivers in this block. Use `jackstraw_rajive()` when the question is
+statistical significance.
 
 ---
 
@@ -715,8 +717,9 @@ knitr::kable(overlap, digits = 3,
 ```
 
 
-**Interpretation.** Values near 1: same features highly ranked in both blocks.
-Moderate overlap (~0.2-0.4) is typical for real multi-omics data.
+**What to look for.** Values near 1 mean the same features dominate both
+blocks. Moderate overlap is common when different molecular layers share a
+process without sharing identical feature identities.
 
 ---
 
@@ -743,8 +746,9 @@ knitr::kable(assoc_cat, digits = 4,
 ```
 
 
-> **Exploratory-inference caveat.** P-values are from estimated scores and do
-> not propagate score estimation error. Treat as hypothesis-generating only.
+> **Exploratory-inference caveat.** These p-values condition on estimated
+> scores and do not propagate score uncertainty. Treat them as
+> hypothesis-generating.
 
 ---
 
@@ -774,7 +778,7 @@ knitr::kable(assoc_surv, digits = 4,
 
 
 > **Survival-split note.** The median-split log-rank test is descriptive. For
-> primary inference prefer `split = "none"` (continuous Cox regression).
+> primary inference, prefer `split = "none"` and the continuous Cox model.
 
 ---
 
@@ -810,8 +814,8 @@ cat("Observed rank:", stab_rank$observed_rank, "\n")
 ```
 
 
-**Interpretation.** A concentrated distribution (all resamples returning the
-same rank) indicates high rank stability.
+**What to look for.** A concentrated bootstrap distribution means the selected
+rank is insensitive to sample resampling.
 
 ---
 
@@ -824,9 +828,9 @@ for (k in seq_along(stab_load))
 ```
 
 
-> **Procrustes note.** Bootstrap loadings are aligned via orthogonal Procrustes
-> rotation before comparing cosine similarities. Cosine > 0.9 is typically
-> considered stable.
+> **Procrustes note.** Bootstrap loadings are aligned by orthogonal Procrustes
+> rotation before cosine similarities are computed. Cosine similarity above
+> 0.9 is typically a stable direction.
 
 ---
 
@@ -951,9 +955,9 @@ js <- jackstraw_rajive(
 ```
 
 
-> **Significance note.** Identifies features *associated with* the estimated
-> joint score — an approximation (decomposition is not re-estimated after
-> feature masking). Do not interpret as causal drivers.
+> **Significance note.** The jackstraw identifies features associated with the
+> estimated joint score. It does not establish causal drivers, and the
+> decomposition is not re-estimated after feature masking.
 
 ---
 
@@ -989,9 +993,9 @@ plot_jackstraw(js, type = "pvalue_hist", block = 1L, component = 1L)
 ```
 
 
-**Interpretation.** A spike near 0 followed by a near-uniform distribution
-indicates well-calibrated test with true signal. Fully uniform = no significant
-features.
+**What to look for.** A spike near zero followed by a near-uniform tail suggests
+real signal plus calibrated null features. A fully uniform histogram suggests
+little feature-level signal for that component.
 
 ---
 
@@ -1087,8 +1091,8 @@ cat("File size (bytes):", file.info(tmp_html)$size, "\n")
 ```
 
 
-**Interpretation.** A standalone HTML report for review. For final
-analyses, use the specialized functions demonstrated above.
+**What to look for.** The report is a portable review artifact. For final
+analysis decisions, use the specialized tables and plots shown above.
 
 ---
 

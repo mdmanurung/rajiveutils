@@ -1,8 +1,8 @@
 ---
-title: "Multi-omics integration of CLL data with rajiveplus"
+title: "What Is Shared Across CLL Omics Layers?"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Multi-omics integration of CLL data with rajiveplus}
+  %\VignetteIndexEntry{What Is Shared Across CLL Omics Layers?}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -22,16 +22,17 @@ data_dir  <- "data"
 
 
 
-## Introduction
+## The question
 
-This vignette applies `rajiveplus` to the publicly available Chronic
-Lymphocytic Leukaemia (CLL) multi-omics cohort from Dietrich et al. (2018)
+The CLL cohort asks a familiar multi-omics question: when transcript abundance,
+DNA methylation, and drug response are measured on overlapping patients, which
+axes of variation are genuinely shared? This vignette applies `rajiveplus` to
+the public Chronic Lymphocytic Leukaemia cohort from Dietrich et al. (2018)
 ([PMID 29227291](https://pubmed.ncbi.nlm.nih.gov/29227291/)), distributed
-via the Bioconductor package `BloodCancerMultiOmics2017`.  The same dataset
-was used in the original MOFA2 vignette (Argelaguet et al. 2020), which
-provides a useful methodological comparison.
+through `BloodCancerMultiOmics2017`. The same data were used in the original
+MOFA2 vignette (Argelaguet et al. 2020), giving a useful point of comparison.
 
-We integrate three complementary **Gaussian** views with RaJIVE:
+We use three approximately Gaussian views:
 
 | Block | Source object | Biological meaning |
 |-------|---------------|--------------------|
@@ -39,22 +40,21 @@ We integrate three complementary **Gaussian** views with RaJIVE:
 | Methylation | `methData` (RangedSummarizedExperiment, 5 000 CpGs × 196 samples) | Epigenetic state |
 | Drug viability | `lpdAll` (ExpressionSet, 448 drug–dose features × 249 samples) | Pharmacological sensitivity |
 
-> **Why no mutations block?** The MOFA2 tutorial includes somatic mutations
-> as a fourth block using a Bernoulli likelihood.  RaJIVE inherits the JIVE
-> Gaussian assumption, so binary mutation matrices are not appropriate input.
-> Instead, IGHV mutation status and trisomy 12 are used purely as metadata
-> for interpretation and clinical validation.
+> **Why no mutations block?** The MOFA2 tutorial includes somatic mutations as
+> a fourth block using a Bernoulli likelihood. RaJIVE inherits the JIVE
+> Gaussian assumption, so binary mutation matrices are not used as input here.
+> IGHV mutation status and trisomy 12 instead enter as metadata for
+> interpretation and clinical validation.
 
 The three-way sample overlap after restricting to CLL patients is **~121 samples**.
 
-**Analysis goals:**
+The analysis follows five questions:
 
-1. Identify **joint** sources of variation shared across all three omics layers
-2. Characterise factor etiology via feature weights and data scatter plots
-3. Link joint factors to clinical phenotypes (IGHV status, trisomy 12)
-4. Test which features drive joint variation with `jackstraw_rajive()`
-5. Impute missing IGHV status using joint factor scores
-6. Assess survival relevance with Cox proportional-hazards regression
+1. Which joint sources of variation are shared across all three layers?
+2. Which feature weights make those axes biologically legible?
+3. Do joint factors align with IGHV status or trisomy 12?
+4. Which features are significant under `jackstraw_rajive()`?
+5. Can joint factors predict missing IGHV status and time to treatment?
 
 ---
 
@@ -78,7 +78,7 @@ library(pheatmap)
 
 ---
 
-## Data Loading and Overview
+## Data loading
 
 ```{r load-data, eval = run_heavy}
 library(BloodCancerMultiOmics2017)
@@ -167,7 +167,7 @@ cat("Block dimensions:\n"); print(lapply(blocks, dim))
 
 ---
 
-## Scree Plots: Choosing Initial Signal Ranks
+## How much signal should each block contribute?
 
 ```{r scree-compute, eval = run_heavy}
 svd_list <- lapply(blocks, function(m) svd(m, nu = 0, nv = 0)$d)
@@ -192,12 +192,13 @@ for (i in seq_along(svd_list)) {
 par(mfrow = c(1, 1))
 ```
 
-The dashed red lines mark the chosen initial signal ranks:
-**mRNA = 15**, **Methylation = 10**, **Drugs = 10**.
+The dashed red lines mark deliberately conservative initial signal ranks:
+**mRNA = 15**, **Methylation = 10**, and **Drugs = 10**. They define the
+candidate subspaces from which RaJIVE will estimate the shared structure.
 
 ---
 
-## Run Rajive()
+## Fit RaJIVE
 
 ```{r run-rajive, eval = run_heavy}
 set.seed(42)
@@ -221,11 +222,11 @@ print(get_all_ranks(cll_fit))
 
 ---
 
-## Component Structure
+## What did the decomposition find?
 
-Before exploring factors it is useful to inspect the full decomposition
-structure: how many joint and individual components were estimated per block.
-`summarize_components()` returns this as a compact table.
+Before interpreting any factor, inspect the skeleton of the decomposition: the
+joint rank and the block-specific individual ranks. `summarize_components()`
+returns that structure as a compact table.
 
 ```{r comp-structure}
 comp_tbl <- summarize_components(ajive_output = cll_fit,
@@ -234,10 +235,9 @@ knitr::kable(comp_tbl,
              caption = "Decomposition structure: joint and individual ranks per block")
 ```
 
-To verify that joint factors are approximately uncorrelated, a diagnostic check
-analogous to `plot_factor_cor()` in MOFA2, we plot the pairwise scatter of
-joint scores.  RaJIVE imposes orthogonality within the joint subspace by
-construction, so any residual correlation signals a potential fitting issue.
+The pairwise score plot is the RaJIVE analogue of a factor-correlation check.
+RaJIVE imposes orthogonality within the joint subspace, so strong residual
+correlation would be a warning sign rather than a biological discovery.
 
 ```{r factor-pairs}
 plot_components(cll_fit, plot_type = "pairs", type = "joint") +
@@ -247,10 +247,10 @@ plot_components(cll_fit, plot_type = "pairs", type = "joint") +
 
 ---
 
-## Rank Diagnostics
+## Was the rank decision convincing?
 
-AJIVE selects the joint rank by comparing the observed joint singular values
-against two data-adaptive thresholds: the Wedin perturbation bound and the
+AJIVE selects the joint rank by asking whether observed joint singular values
+clear two data-adaptive thresholds: the Wedin perturbation bound and the
 random-direction bound.
 
 ```{r rank-diag-table}
@@ -260,8 +260,8 @@ knitr::kable(head(diag_long, 10),
              caption = "Top AJIVE rank-diagnostic rows")
 ```
 
-The composite diagnostic plot shows all evidence side-by-side: bound
-distributions, per-block singular values, and the threshold decision.
+The composite diagnostic plot puts the evidence side by side: bound
+distributions, per-block singular values, and the final threshold decision.
 
 ```{r rank-diag-composite, fig.height = 6}
 plot_components(cll_fit, plot_type = "ajive_diagnostic") +
@@ -282,10 +282,11 @@ knitr::kable(diag_tbl, digits = 4,
 
 ---
 
-## Metadata Associations
+## Which clinical labels follow the joint factors?
 
-We test associations between joint factor scores and clinical variables.
-P-values are exploratory — score-estimation uncertainty is not propagated.
+Next we test whether joint scores line up with clinical variables. These
+p-values are exploratory because the score-estimation uncertainty is not
+propagated in this section.
 
 ```{r assoc-ighv}
 assoc_ighv <- associate_components(
@@ -319,7 +320,7 @@ plot_components(assoc_results = assoc_combined,
   labs(title = "Factor-covariate association summary")
 ```
 
-### Bootstrap joint-rank stability
+### Does the rank survive resampling?
 
 ```{r stability-run, eval = run_heavy}
 stab_rank <- assess_stability(
@@ -343,11 +344,11 @@ knitr::kable(as.data.frame(stab_rank$rank_table),
 
 ---
 
-## Variance Decomposition
+## Where is the variation?
 
-**The variance decomposition is the most important high-level summary**
-that RaJIVE produces.  It shows which omics layer is primarily driven by
-shared (joint) versus layer-specific (individual) variation.
+The variance decomposition is the high-level map of the fit. It shows whether
+each omics layer is dominated by shared joint structure, layer-specific
+individual structure, or residual variation.
 
 ```{r var-plot}
 plot_variance_explained(cll_fit, blocks) +
@@ -366,7 +367,7 @@ knitr::kable(ve_tbl, digits = 2,
 
 ---
 
-## Joint Factor Exploration
+## What do the joint factors mean?
 
 ### Factor 1 vs Factor 2: IGHV status
 
@@ -398,10 +399,9 @@ ggplot(plot_df, aes(x = Factor1, y = Factor2, colour = IGHV)) +
 
 ### Factor 1 vs Factor 3: IGHV status and trisomy 12
 
-This is the rajiveplus analogue of the key MOFA2 figure that classifies
-patients into molecular subgroups.  Factor 1 separates IGHV-mutated (M) from
-unmutated (U) patients; Factor 3 (if present) is inspected for trisomy 12
-association — the second most important clinical marker in CLL.
+This plot mirrors the central MOFA2 CLL display: a low-dimensional map of
+patients and molecular subgroups. Factor 1 is checked for the IGHV mutated (M)
+versus unmutated (U) split; Factor 3, when present, is checked for trisomy 12.
 
 ```{r scores-f1f3}
 if (ncol(joint_sc_m) >= 3) {
@@ -457,14 +457,13 @@ pheatmap(cor_mat,
 
 ---
 
-## Feature Weights and Data Scatter
+## Which features give the factors their names?
 
 ### Top feature loadings (bar chart)
 
-`plot_components()` with `plot_type = "top_features"` produces a signed
-loading bar chart — the RaJIVE equivalent of `plot_top_weights()` in MOFA2.
-Features with no association with the factor cluster near zero; features with
-large absolute values drive the factor.
+`plot_components(plot_type = "top_features")` gives a signed loading chart,
+the RaJIVE counterpart of MOFA2's top-weight view. Features near zero do not
+define the axis; features with large absolute loadings do.
 
 ```{r top-features-bar}
 plot_components(cll_fit,
@@ -479,10 +478,9 @@ plot_components(cll_fit,
 
 ### Factor value vs gene expression scatter
 
-Analogous to `plot_data_scatter()` in MOFA2: for each of the top-weighted
-genes we plot the Factor 1 score (x-axis) against normalised expression
-(y-axis), colouring by IGHV status.  This verifies that the sign of the
-loading has a biologically interpretable direction.
+The scatter plots connect a latent score back to measured expression. For each
+top-weighted gene, Factor 1 is shown against normalized expression and colored
+by IGHV status, so the sign of the loading can be read biologically.
 
 ```{r data-scatter, fig.height = 4}
 # Retrieve top positive and top negative loading genes
@@ -530,7 +528,7 @@ if (!is.null(p_neg)) print(p_neg)
 
 ---
 
-## Jackstraw Significance Testing
+## Which feature weights are statistically supported?
 
 ```{r jackstraw-run, eval = run_heavy}
 set.seed(42)
@@ -549,8 +547,8 @@ cll_js <- readRDS(file.path(data_dir, "cll_jackstraw_results.rds"))
 print(cll_js)
 ```
 
-`summarize_components()` gives a compact count of significant features per
-block–component combination at the chosen FDR threshold.
+`summarize_components()` turns the jackstraw result into counts of significant
+features for each block-component pair at the chosen FDR threshold.
 
 ```{r jackstraw-sig-summary}
 sig_tbl <- summarize_components(jackstraw_result = cll_js,
@@ -566,7 +564,8 @@ plot_jackstraw(cll_js, type = "pvalue_hist", block = 1L, component = 1L) +
   theme_bw()
 ```
 
-A volcano plot provides a gene-level view of effect size versus significance.
+A volcano plot shows the gene-level tradeoff between effect size and
+significance.
 
 ```{r jackstraw-volcano}
 plot_components(jackstraw_result = cll_js,
@@ -586,7 +585,7 @@ if (nrow(sig_mrna) > 0)
 
 ---
 
-## Molecular Signatures: Top Feature Loadings
+## Molecular signatures
 
 ```{r top-loadings-table}
 top25_tbl <- rank_features(
@@ -602,9 +601,9 @@ knitr::kable(head(top25_tbl, 10), digits = 4,
              caption = "Top-ranked mRNA loadings from rank_features()")
 ```
 
-The `component_heatmap` plot type shows samples sorted by their Factor 1
-score with the top-loaded features as rows — the RaJIVE equivalent of
-`plot_data_heatmap()` in MOFA2.
+The component heatmap sorts samples by the Factor 1 score and displays the
+top-loaded features as rows. It is the RaJIVE counterpart of MOFA2's
+data-heatmap view.
 
 ```{r component-heatmap}
 plot_components(cll_fit,
@@ -617,13 +616,13 @@ plot_components(cll_fit,
 
 ---
 
-## Clinical Subgroup Prediction
+## Can factors predict clinical labels?
 
 ### IGHV status (Random Forest)
 
 We train a random forest on the joint factor scores to predict IGHV status.
-Samples with missing IGHV labels can then be imputed — analogous to the
-prediction step in the MOFA2 CLL vignette.
+Samples missing IGHV labels can then be imputed, echoing the prediction step in
+the MOFA2 CLL vignette.
 
 ```{r rf-ighv}
 if (requireNamespace("randomForest", quietly = TRUE)) {
@@ -647,8 +646,8 @@ if (requireNamespace("randomForest", quietly = TRUE)) {
 }
 ```
 
-Plot predicted vs observed IGHV in the Factor 1 vs Factor 3 space,
-highlighting samples where the label was imputed.
+The plot places observed and imputed IGHV labels back into Factor 1 versus
+Factor 3 space, making the imputation visually auditable.
 
 ```{r rf-plot}
 if (exists("rf_df") && ncol(joint_sc_m) >= 3) {
@@ -739,9 +738,9 @@ if (requireNamespace("survival", quietly = TRUE) && exists("cox_fit")) {
 
 ### Kaplan-Meier curve (optimal cutpoint)
 
-Rather than a median split, we use the maximally selected rank statistic
-(`surv_cutpoint()` from **survminer**) to find the optimal Factor 1
-threshold — the same approach used in the MOFA2 CLL vignette.
+Instead of splitting at the median, we use the maximally selected rank
+statistic (`surv_cutpoint()` from **survminer**) to choose the Factor 1
+threshold. This matches the approach used in the MOFA2 CLL vignette.
 
 ```{r km-plot}
 if (requireNamespace("survminer", quietly = TRUE) &&
@@ -778,13 +777,13 @@ if (requireNamespace("survminer", quietly = TRUE) &&
 
 ---
 
-## Comparison with MOFA2 Findings
+## How does this compare with MOFA2?
 
-The MOFA2 CLL analysis (Argelaguet et al. 2020) identified four latent
-factors.  The table below maps biological interpretations across methods.
-Note that factor numbering is not directly comparable: MOFA2 orders factors
-by total variance explained, whereas RaJIVE factors reflect the joint
-subspace geometry.
+The MOFA2 CLL analysis (Argelaguet et al. 2020) reported four latent factors.
+The table below maps the main biological interpretations across methods.
+Factor numbers are not directly comparable: MOFA2 orders factors by total
+variance explained, whereas RaJIVE factors reflect the geometry of the joint
+subspace.
 
 ```{r mofa2-comparison}
 jrank   <- get_joint_rank(cll_fit)
@@ -811,13 +810,11 @@ knitr::kable(comp_df,
 
 > **Methodological note.** MOFA2 is a probabilistic latent factor model with
 > view-specific likelihoods; RaJIVE is a deterministic matrix decomposition
-> that maximises explained variance under a Gaussian assumption.  Both
-> methods identify IGHV status as the dominant axis of variation in the CLL
-> cohort.  Key differences: (i) RaJIVE provides a hard joint/individual
-> decomposition whereas MOFA2 factors can span all views with varying
-> contributions; (ii) RaJIVE's jackstraw test provides feature-level
-> significance without a sparse weight prior; (iii) MOFA2 supports
-> non-Gaussian data (binary mutations, counts) natively.
+> that maximizes explained variance under a Gaussian assumption. Both methods
+> identify IGHV status as a dominant CLL axis. The differences matter:
+> RaJIVE gives a hard joint/individual split, its jackstraw test gives
+> feature-level significance without a sparse prior, and MOFA2 natively
+> handles non-Gaussian views such as binary mutations and counts.
 
 ---
 

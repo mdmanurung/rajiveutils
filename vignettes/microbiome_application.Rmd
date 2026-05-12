@@ -1,5 +1,5 @@
 ---
-title: "Multi-kingdom microbiome integration with rajiveplus"
+title: "What Do Microbial Kingdoms Share?"
 author: "RaJIVEutils development team"
 date: "`r Sys.Date()`"
 output:
@@ -8,7 +8,7 @@ output:
     toc_depth: 3
     number_sections: true
 vignette: >
-  %\VignetteIndexEntry{Multi-kingdom microbiome integration with rajiveplus}
+  %\VignetteIndexEntry{What Do Microbial Kingdoms Share?}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -26,13 +26,17 @@ knitr::opts_chunk$set(
 data_dir <- "data"
 ```
 
-# Introduction
+# The question
 
-This vignette demonstrates the **rajiveplus** workflow on a multi-kingdom gut
-microbiome dataset from [Haak *et al.* (2021)](https://doi.org/10.1038/s41586-021-03406-7).
-The cohort comprises 57 patients with matched measurements across three microbial
-kingdoms — **Bacteria** (16S rRNA, 180 OTUs), **Fungi** (ITS2, 18 OTUs) and
-**Viruses** (virome sequencing, 42 viral families) — along with rich clinical
+A gut microbiome is not one ecosystem measured three times. Bacteria, fungi,
+and viruses can move together, or they can carry kingdom-specific variation.
+This vignette uses **rajiveplus** on the multi-kingdom gut microbiome data from
+[Haak *et al.* (2021)](https://doi.org/10.1038/s41586-021-03406-7) to separate
+those two possibilities.
+
+The cohort contains 57 patients with matched measurements across three
+microbial kingdoms - **Bacteria** (16S rRNA, 180 OTUs), **Fungi** (ITS2, 18
+OTUs), and **Viruses** (virome sequencing, 42 viral families) - plus clinical
 metadata including antibiotic exposure and short-chain fatty acid profiles.
 
 | Kingdom  | Technology    | Features |
@@ -43,8 +47,8 @@ metadata including antibiotic exposure and short-chain fatty acid profiles.
 
 ## Scientific question
 
-Can RaJIVE identify shared (joint) and kingdom-specific (individual) patterns of
-microbiome variation, and do these associate with clinical outcomes?
+Can RaJIVE find a shared microbiome axis across kingdoms, and can it separate
+that axis from bacteria-, fungi-, or virus-specific structure?
 
 # Prerequisites
 
@@ -60,8 +64,8 @@ theme_set(theme_bw(base_size = 13))
 
 # Data loading
 
-The vignette uses cached RDS files so that the rendered article is
-reproducible without re-downloading the source data.
+The rendered vignette reads cached RDS files. That keeps the article
+reproducible without requiring a fresh download from the source archive.
 
 ```{r load-raw}
 raw  <- readRDS(file.path(data_dir, "microbiome_raw.rds"))
@@ -82,7 +86,7 @@ kingdom_summary <- dt |>
 knitr::kable(kingdom_summary, caption = "Features and samples per kingdom")
 ```
 
-## Value distributions
+## What scale are the values on?
 
 ```{r distributions, fig.height=4}
 ggplot(dt, aes(x = value, colour = view, fill = view)) +
@@ -93,7 +97,7 @@ ggplot(dt, aes(x = value, colour = view, fill = view)) +
   theme(legend.position = "none")
 ```
 
-## Sample categories
+## Which sample groups are present?
 
 ```{r sample-counts}
 if ("Category" %in% colnames(meta)) {
@@ -103,7 +107,7 @@ if ("Category" %in% colnames(meta)) {
 }
 ```
 
-# Preprocessing
+# Matched blocks
 
 ```{r load-preprocessed}
 pp      <- readRDS(file.path(data_dir, "microbiome_preprocessed.rds"))
@@ -116,7 +120,7 @@ cat("Block dims  :",
 cat("Meta samples:", nrow(meta_s), "\n")
 ```
 
-## Scree plots
+## How much rank should each kingdom offer?
 
 ```{r scree, fig.height=4}
 svd_list <- readRDS(file.path(data_dir, "microbiome_svd_list.rds"))
@@ -139,7 +143,7 @@ ggplot(scree_df, aes(x = component, y = variance * 100, colour = kingdom)) +
   theme(legend.position = "none")
 ```
 
-# Fitting the RaJIVE model
+# Fit the RaJIVE model
 
 ```{r load-fit}
 mb_fit   <- readRDS(file.path(data_dir, "microbiome_rajive_results.rds"))
@@ -153,7 +157,7 @@ cat("Ranks per block :\n")
 print(all_rnks)
 ```
 
-# Rank diagnostics
+# Was the joint rank convincing?
 
 ```{r rank-diag, fig.height=5}
 plot_components(mb_fit, plot_type = "ajive_diagnostic") +
@@ -172,7 +176,7 @@ ind_rank_df <- data.frame(
 knitr::kable(ind_rank_df, caption = "Estimated ranks per kingdom")
 ```
 
-# Variance decomposition
+# Where does the variation live?
 
 ```{r var-explained, fig.height=4}
 plot_variance_explained(mb_fit, blocks) +
@@ -185,7 +189,7 @@ if (is.data.frame(ve_tbl)) knitr::kable(ve_tbl, digits = 3,
   caption = "Proportion of variance explained")
 ```
 
-# Joint scores
+# What does the joint score track?
 
 ```{r joint-scores, fig.height=5}
 J_scores <- get_joint_scores(mb_fit)   # n_samples × jr matrix
@@ -216,7 +220,7 @@ if (!is.null(J_scores) && jr >= 1) {
 }
 ```
 
-## Joint score scatter (if jr > 1)
+## A two-dimensional joint map, if present
 
 ```{r joint-scatter, fig.height=5}
 if (!is.null(J_scores) && jr >= 2) {
@@ -228,7 +232,7 @@ if (!is.null(J_scores) && jr >= 2) {
 }
 ```
 
-# Feature loadings (joint component)
+# Which features define the joint component?
 
 ```{r loadings, fig.height=5}
 if (jr >= 1) {
@@ -253,7 +257,7 @@ if (jr >= 1) {
 }
 ```
 
-# Individual components
+# What is kingdom-specific?
 
 ```{r ind-scores, fig.height=5}
 for (i in seq_along(kingdom_names)) {
@@ -289,7 +293,7 @@ for (i in seq_along(kingdom_names)) {
 }
 ```
 
-# Jackstraw significance
+# Which joint features are statistically supported?
 
 ```{r jackstraw, fig.height=5}
 js <- readRDS(file.path(data_dir, "microbiome_jackstraw_results.rds"))
@@ -309,7 +313,7 @@ if (!is.null(sig) && length(sig) > 0) {
 }
 ```
 
-# Clinical associations
+# Do clinical variables follow the joint axis?
 
 ```{r clinical-assoc}
 # Categorical variables
@@ -349,7 +353,7 @@ if (jr >= 1 && length(cont_vars) > 0) {
 }
 ```
 
-# Bootstrap stability
+# Does the rank survive resampling?
 
 ```{r stability, fig.height=4}
 stab <- readRDS(file.path(data_dir, "microbiome_stability.rds"))
@@ -359,25 +363,19 @@ if (!is.null(stab_summary)) print(stab_summary)
 
 # Conclusion
 
-This vignette demonstrates that RaJIVE successfully decomposes multi-kingdom
-microbiome data into:
+In this cached analysis, RaJIVE finds one joint component shared by Bacteria,
+Fungi, and Viruses, plus kingdom-specific individual components. The joint axis
+is the candidate ecosystem-wide signal: a host or treatment-associated pattern
+that crosses kingdom boundaries. The individual components capture the other
+half of the story, where each kingdom carries its own ecological structure.
 
-- **1 joint component** shared across Bacteria, Fungi and Viruses
-- **Kingdom-specific individual components** (4, 4, and 7 respectively)
+The main takeaways are:
 
-The single joint component likely captures the dominant host-driven covariation
-pattern across kingdoms, while individual components reflect kingdom-specific
-ecological dynamics.
-
-**Key findings:**
-
-1. Bacteria, Fungi and Viruses share a single axis of co-variation (jr = 1)
-2. Jackstraw testing identifies statistically significant features driving this
-   joint structure
-3. The joint component associates with clinical categories, consistent with
-   antibiotic disruption affecting the entire gut ecosystem
-4. Individual components reveal kingdom-specific biology not captured by joint
-   analysis alone
+1. Bacteria, Fungi, and Viruses share a single covariation axis (`jr = 1`)
+2. Jackstraw testing highlights features supporting that joint structure
+3. The joint component can be screened against clinical categories
+4. Individual components retain kingdom-specific biology that the joint axis
+   intentionally leaves behind
 
 # Session information
 
@@ -387,9 +385,9 @@ sessionInfo()
 
 # Appendix: Cache generation script {.appendix}
 
-The code below recreates the cached RDS files from the source data. It requires
-internet access to download from EBI FTP and is not evaluated during vignette
-builds.
+The code below recreates the cached RDS files from the source data. It needs
+internet access to download from EBI FTP, so it is not evaluated during
+vignette builds.
 
 ```{r cache-gen, eval=FALSE}
 # ---- 0. Setup ----------------------------------------------------------------

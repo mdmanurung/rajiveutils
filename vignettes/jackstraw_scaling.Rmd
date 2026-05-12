@@ -1,8 +1,8 @@
 ---
-title: "Jackstraw Scaling Analysis"
+title: "How Far Can the Jackstraw Scale?"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Jackstraw Scaling Analysis}
+  %\VignetteIndexEntry{How Far Can the Jackstraw Scale?}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -22,30 +22,28 @@ data_dir  <- "data"
 
 
 
-## Introduction
+## The question
 
-`jackstraw_rajive()` identifies which variables (features) in each data
-block have statistically significant nonzero joint loadings after a RaJIVE
-decomposition. The current implementation uses a computationally efficient
-score-permutation approximation: it samples feature rows, permutes the joint
-score vector to break feature-score association under the null, and
-accumulates null F-statistics for comparison against observed F-statistics.
+After RaJIVE finds a joint axis, the next question is more local: which
+features are actually tied to it? `jackstraw_rajive()` answers with a
+score-permutation approximation. It samples feature rows, permutes the joint
+score to break the association expected under the null, and compares observed
+F-statistics with the accumulated null statistics.
 
-The computational cost scales with:
+The cost has three moving parts:
 
-- **n** (samples) — larger linear algebra cost as sample size increases
-- **p** (features per block) — more F-statistics to compute per null replicate
-- **n_null** (null replicates) — linear effect; most controllable parameter
+- **n** (samples): more rows increase the linear algebra cost
+- **p** (features per block): more observed F-statistics are scored
+- **n_null** (null replicates): the user-controlled accuracy/cost dial
 
-This vignette benchmarks these three axes and provides a practical guide for
-choosing `n_null` given data size.
+This vignette asks how those three parts behave in practice, then turns the
+timings into a rule of thumb for choosing `n_null`.
 
-All timing/memory runs use the current `jackstraw_rajive()` default
-multiple-testing behavior (`correction = "BH"`, Benjamini--Hochberg),
-applied globally across all block/component/feature tests in each run.
-BH controls FDR under positive regression dependency; pass
-`correction = "BY"` explicitly if you prefer the more conservative
-Benjamini--Yekutieli procedure under arbitrary feature dependence.
+All timing and memory runs use the current default multiple-testing behavior,
+`correction = "BH"` (Benjamini-Hochberg), applied globally across all
+block/component/feature tests in each run. Use `correction = "BY"` when you
+want the more conservative Benjamini-Yekutieli procedure under arbitrary
+feature dependence.
 
 ---
 
@@ -148,8 +146,8 @@ ggplot(time_p_df, aes(x = p, y = elapsed)) +
 
 ## Time vs n_null
 
-`n_null` is the most user-controllable parameter.  Its effect is nearly
-perfectly linear since the permutation loop is `n_null` iterations:
+`n_null` is the knob analysts actually turn. Because the permutation loop runs
+once per null replicate, the elapsed time should rise almost linearly.
 
 ```{r}
 nnulls <- c(5L, 10L, 25L, 50L)
@@ -252,10 +250,10 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 
 ---
 
-## profmem: Allocation Profile (Small Data)
+## profmem: allocation profile on small data
 
-A `profmem` run on tiny data (`n=50, p=100`) to inspect which calls
-allocate most R-heap memory.  This runs fast enough for `eval=TRUE`:
+On tiny data (`n = 50`, `p = 100`), `profmem` can show which R call stacks
+allocate most of the R heap while still running quickly in the vignette.
 
 ```{r}
 if (requireNamespace("profmem", quietly = TRUE)) {
@@ -286,10 +284,10 @@ if (requireNamespace("profmem", quietly = TRUE)) {
 
 ---
 
-## profvis: Interactive Profile
+## profvis: interactive profile
 
-`profvis` returns an HTML widget incompatible with static pkgdown output.
-Run this interactively in an R session to explore the flame graph:
+`profvis` is best used at the console because it returns an HTML widget rather
+than a static plot. The code below is kept as a ready-made flame-graph recipe.
 
 ```{r}
 # Run interactively only — not rendered in the vignette
@@ -307,7 +305,7 @@ if (requireNamespace("profvis", quietly = TRUE)) {
 
 ---
 
-## Summary: 2x2 Scaling Overview
+## Four views of the same cost
 
 ```{r}
 time_n_df  <- readRDS(file.path(data_dir, "jackstraw_time_vs_n.rds"))
@@ -344,7 +342,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 
 ---
 
-## Practical Guide: Choosing n_null
+## Choosing n_null
 
 ```{r}
 guide_df <- data.frame(
@@ -370,8 +368,10 @@ knitr::kable(guide_df,
 
 
 
-The linear scaling of `n_null` means you can always run a quick exploratory
-analysis with `n_null = 10` and then increase to 50–100 for final results.
+The practical pattern is simple: start small, learn the signal, then spend the
+replicates where it matters. Because `n_null` scales nearly linearly, an
+exploratory run at `n_null = 10` is cheap insurance before increasing to
+50-100 for the final analysis.
 
 ---
 

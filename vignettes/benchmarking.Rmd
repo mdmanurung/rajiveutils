@@ -1,8 +1,8 @@
 ---
-title: "Benchmarking rajiveplus vs RaJIVE"
+title: "Where the Time Goes: rajiveplus vs RaJIVE"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Benchmarking rajiveplus vs RaJIVE}
+  %\VignetteIndexEntry{Where the Time Goes: rajiveplus vs RaJIVE}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -23,15 +23,18 @@ data_dir  <- "data"        # relative to vignettes/
 
 
 
-## Introduction
+## The question
 
-`rajiveplus` reimplements the Robust aJIVE decomposition with a C++
-backend (RcppArmadillo) for the `RobustSVD` step, which is the primary
-computational bottleneck.  The original
-[RaJIVE](https://github.com/ericaponzi/RaJIVE) package performs all SVD
-computation in pure R.
+Matrix decompositions ask a simple question and pay for it many times: which
+directions in these blocks are shared? In Robust aJIVE, the expensive part is
+the repeated robust SVD. `rajiveplus` moves that bottleneck into C++ through
+RcppArmadillo, while the original
+[RaJIVE](https://github.com/ericaponzi/RaJIVE) package keeps the computation in
+pure R.
 
-This vignette quantifies the practical speedup across three dimensions:
+The useful benchmark is therefore not abstract. It is: when does that C++
+implementation change the working scale of an analysis? We look along five
+axes:
 
 | Benchmark | Varies | Fixed |
 |-----------|--------|-------|
@@ -41,25 +44,21 @@ This vignette quantifies the practical speedup across three dimensions:
 | Parallelism (rajiveplus only) | num_cores in {1,2,4} | n=200, p=1000 |
 | Peak memory | implementation | K=2, n=100, p=500 |
 
-**Note on `joint_rank`:** All benchmarks fix `joint_rank = 2` to bypass
-stochastic rank estimation, ensuring clean timing comparisons.
+Two details keep the comparison honest. First, every benchmark fixes
+`joint_rank = 2`, so we time the decomposition rather than stochastic rank
+selection. Second, `RaJIVE` registers two parallel workers internally, so the
+head-to-head runs give `rajiveplus` the same two-core budget.
 
-**Note on `RaJIVE` parallelism:** `RaJIVE` internally calls
-`doParallel::registerDoParallel(2)` on every invocation and cannot run
-single-core.  Head-to-head comparisons therefore always use `num_cores = 2`
-for `rajiveplus` as well.
-
-**Scope note:** This vignette benchmarks core decomposition performance
-(`Rajive()` and related internals). New interpretation helpers such as
-`extract_components()`, `plot_components()`, `associate_components()`,
-and `assess_stability()` are covered in the README and application
-vignettes rather than timing-focused benchmarks.
+This is a timing vignette, not an interpretation vignette. Helpers such as
+`extract_components()`, `plot_components()`, `associate_components()`, and
+`assess_stability()` appear in the application vignettes where their outputs
+matter scientifically.
 
 ---
 
 ## Setup
 
-Install `RaJIVE` from GitHub if not yet available:
+Install the reference implementation if it is not already available:
 
 ```{r}
 if (!requireNamespace("RaJIVE", quietly = TRUE))
@@ -69,8 +68,8 @@ if (!requireNamespace("RaJIVE", quietly = TRUE))
 
 
 
-Load packages using `::` throughout to avoid namespace conflicts (both
-packages export `Rajive()`):
+Both packages export a function named `Rajive()`. The benchmark code therefore
+uses explicit namespaces whenever the two implementations are compared.
 
 ```{r}
 library(rajiveplus)
@@ -83,8 +82,8 @@ library(ggplot2)
 
 
 
-Pre-register **one** doParallel cluster of 2 workers before any benchmark
-call to avoid paying cluster spin-up cost inside every `RaJIVE::Rajive()`:
+We also register one two-worker `doParallel` cluster before benchmarking. That
+keeps worker start-up from masquerading as algorithmic cost.
 
 ```{r}
 doParallel::registerDoParallel(2L)
@@ -93,7 +92,8 @@ doParallel::registerDoParallel(2L)
 
 
 
-Simulate the benchmark dataset (K=2 blocks, n=100 samples, p=500 features):
+The main benchmark data set has two blocks, 100 samples, and 500 features per
+block:
 
 ```{r}
 set.seed(42)
@@ -107,9 +107,9 @@ blocks <- Y$sim_data
 
 ---
 
-## Single-run Orientation
+## First look
 
-A quick `system.time()` gives an intuitive baseline before formal benchmarking:
+Before the formal summaries, a single run gives the scale of the difference.
 
 ```{r}
 t_ru <- system.time(
@@ -128,9 +128,10 @@ cat("Speedup:    ", round(t_rj["elapsed"] / t_ru["elapsed"], 1), "x\n")
 
 ---
 
-## microbenchmark Comparison
+## Repeated timing
 
-Five repeated runs for a robust but tractable timing distribution:
+Five repeated runs are enough to show the timing distribution without turning
+the vignette into a compute job.
 
 ```{r}
 bm_mb <- microbenchmark(
@@ -160,12 +161,11 @@ autoplot(bm_mb) +
 
 ---
 
-## bench::mark Comparison
+## bench::mark comparison
 
-`bench::mark` provides median, IQR and R-heap memory allocation.  Note that
-`mem_alloc` only captures R-level allocations; C++ memory from
-RcppArmadillo is invisible to it (see the **Memory** section for fair RSS
-comparison via `peakRAM`):
+`bench::mark` adds medians and spread. Its memory column measures R-level
+allocations only, so native Armadillo allocations are addressed later with
+`peakRAM`.
 
 ```{r}
 bm_bench <- bench::mark(
@@ -199,7 +199,7 @@ plot(bm_bench) +
 
 ---
 
-## Scaling: Time vs Sample Size (n)
+## Scaling with samples and features
 
 ```{r}
 ns <- c(50L, 100L, 200L)
@@ -292,11 +292,11 @@ knitr::kable(speedup_df,
 
 ---
 
-## Parallelism Scaling (rajiveplus only)
+## What do extra cores buy?
 
-`rajiveplus` supports `num_cores > 1` via `parallel::mclapply`.  This
-section measures elapsed time across core counts on a larger dataset
-(n=200, p=1000).
+`rajiveplus` can spread work across cores through `parallel::mclapply`. Here
+we ask whether that matters on a larger example with 200 samples and 1000
+features per block.
 
 ```{r}
 set.seed(42)
@@ -352,12 +352,11 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 
 ---
 
-## Memory Comparison
+## Memory footprint
 
-`bench::mark` `mem_alloc` only tracks R-heap allocations; the C++
-RobustSVD in `rajiveplus` allocates on the C++ heap via Armadillo,
-invisible to R.  `peakRAM` captures the OS-level resident set size (RSS),
-giving a fair comparison of total memory footprint:
+Speed is only half the story. The C++ RobustSVD allocates through Armadillo, so
+R's heap counters miss part of the footprint. `peakRAM` watches the process at
+the operating-system level and gives the fairer comparison.
 
 ```{r}
 mem_ru <- peakRAM::peakRAM(
@@ -395,11 +394,10 @@ ggplot(peakram_df, aes(x = package, y = peak_ram_mb, fill = package)) +
 
 
 
-> **Why peakRAM?**  R's `bench::mark` `mem_alloc` column measures only R-heap
-> allocations via `mem_used()`.  The C++ RobustSVD implementation allocates on
-> the native heap (Armadillo), which does not appear in `mem_alloc`.
-> `peakRAM` wraps `system.time()`-style timing around a process-level RSS
-> query, capturing all memory including C++ and LAPACK allocations.
+> **Why peakRAM?** `bench::mark` reports R-heap allocation. The native heap used
+> by Armadillo and LAPACK is outside that accounting. `peakRAM` captures the
+> process-level resident set size, which is the memory pressure the scheduler
+> sees.
 
 ---
 
