@@ -18,6 +18,9 @@ fi
 
 mkdir -p logs/vignette_renders
 
+JOB_LIB="${SLURM_TMPDIR:-/tmp}/rajiveplus_vignette_lib_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+mkdir -p "${JOB_LIB}"
+
 VIGNETTES=(
   "vignettes/benchmarking.Rmd"
   "vignettes/cll_application.Rmd"
@@ -41,8 +44,21 @@ echo "Task: ${SLURM_ARRAY_TASK_ID}"
 echo "Vignette: ${RMD}"
 echo "CPUs: ${SLURM_CPUS_PER_TASK}"
 echo "Output dir: logs/vignette_renders"
+echo "Job library: ${JOB_LIB}"
 
-conda run -n R4_51 R --no-save -q -e "rmarkdown::render('${RMD}', output_format = 'rmarkdown::html_vignette', output_dir = 'logs/vignette_renders', clean = TRUE)" 2>&1
+echo ""
+echo "Installing current source tree into job-local library"
+conda run -n R4_51 R CMD INSTALL . --library="${JOB_LIB}" --no-docs --no-demo --no-test-load 2>&1
+INSTALL_EXIT=$?
+echo "Install exit code: ${INSTALL_EXIT}"
+if [ $INSTALL_EXIT -ne 0 ]; then
+  echo "SOURCE INSTALL FAILED"
+  exit $INSTALL_EXIT
+fi
+
+echo ""
+echo "Rendering ${RMD}"
+conda run -n R4_51 R --no-save -q -e ".libPaths(c('${JOB_LIB}', .libPaths())); rmarkdown::render('${RMD}', output_format = 'rmarkdown::html_vignette', output_dir = 'logs/vignette_renders', clean = TRUE)" 2>&1
 RENDER_EXIT=$?
 
 echo "Render exit code: ${RENDER_EXIT}"

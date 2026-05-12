@@ -301,20 +301,26 @@ knitr::kable(assoc_ighv, digits = 4,
 ```
 
 ```{r assoc-trisomy}
-assoc_t12 <- associate_components(
-  ajive_output = cll_fit,
-  metadata     = meta,
-  variable     = "trisomy12",
-  mode         = "categorical",
-  type         = "joint"
-)
-knitr::kable(assoc_t12, digits = 4,
-             caption = "Association: joint factors vs trisomy 12 status")
+if ("trisomy12" %in% colnames(meta)) {
+  assoc_t12 <- associate_components(
+    ajive_output = cll_fit,
+    metadata     = meta,
+    variable     = "trisomy12",
+    mode         = "categorical",
+    type         = "joint"
+  )
+  knitr::kable(assoc_t12, digits = 4,
+               caption = "Association: joint factors vs trisomy 12 status")
+} else {
+  assoc_t12 <- NULL
+  message("trisomy12 metadata not present in cached CLL object; skipping this association.")
+}
 ```
 
 ```{r assoc-plot}
 # associate_components() already sets a 'variable' column; just rbind
-assoc_combined <- rbind(assoc_ighv, assoc_t12)
+assoc_combined <- do.call(rbind, Filter(Negate(is.null),
+                                        list(assoc_ighv, assoc_t12)))
 plot_components(assoc_results = assoc_combined,
                 plot_type     = "association") +
   labs(title = "Factor-covariate association summary")
@@ -336,10 +342,15 @@ saveRDS(stab_rank, file.path(data_dir, "cll_stability.rds"))
 ```
 
 ```{r stability-table}
-stab_rank <- readRDS(file.path(data_dir, "cll_stability.rds"))
-knitr::kable(as.data.frame(stab_rank$rank_table),
-             col.names = c("Joint rank", "Frequency"),
-             caption   = "Bootstrap joint-rank stability (B = 20)")
+stab_path <- file.path(data_dir, "cll_stability.rds")
+if (file.exists(stab_path)) {
+  stab_rank <- readRDS(stab_path)
+  knitr::kable(as.data.frame(stab_rank$rank_table),
+               col.names = c("Joint rank", "Frequency"),
+               caption   = "Bootstrap joint-rank stability (B = 20)")
+} else {
+  message("cll_stability.rds not found; set run_heavy = TRUE to regenerate this table.")
+}
 ```
 
 ---
@@ -397,31 +408,39 @@ ggplot(plot_df, aes(x = Factor1, y = Factor2, colour = IGHV)) +
   theme_bw()
 ```
 
-### Factor 1 vs Factor 3: IGHV status and trisomy 12
+### Factor 1 vs Factor 3: IGHV status and trisomy 12, when available
 
 This plot mirrors the central MOFA2 CLL display: a low-dimensional map of
 patients and molecular subgroups. Factor 1 is checked for the IGHV mutated (M)
-versus unmutated (U) split; Factor 3, when present, is checked for trisomy 12.
+versus unmutated (U) split; Factor 3, when present, is checked for trisomy 12
+when that metadata column is available in the cached cohort object.
 
 ```{r scores-f1f3}
 if (ncol(joint_sc_m) >= 3) {
   plot_df2 <- data.frame(
-    Factor1   = joint_sc_m[["Factor1"]],
-    Factor3   = joint_sc_m[["Factor3"]],
-    IGHV      = factor(meta_m$IGHV),
-    Trisomy12 = factor(meta_m$trisomy12)
+    Factor1 = joint_sc_m[["Factor1"]],
+    Factor3 = joint_sc_m[["Factor3"]],
+    IGHV    = factor(meta_m$IGHV)
   )
+  if ("trisomy12" %in% colnames(meta_m))
+    plot_df2$Trisomy12 <- factor(meta_m$trisomy12)
 
-  ggplot(plot_df2,
-         aes(x = Factor1, y = Factor3, colour = IGHV, shape = Trisomy12)) +
+  p_f13 <- ggplot(plot_df2, aes(x = Factor1, y = Factor3, colour = IGHV))
+  if ("Trisomy12" %in% colnames(plot_df2)) {
+    p_f13 <- p_f13 + aes(shape = Trisomy12) +
+      scale_shape_manual(values = c("0" = 16, "1" = 17), na.value = 4)
+  }
+  p_f13 +
     geom_point(size = 2.5, alpha = 0.85) +
     scale_colour_manual(values = c("M" = "#2166ac", "U" = "#d6604d"),
                         na.value = "grey70") +
-    scale_shape_manual(values = c("0" = 16, "1" = 17), na.value = 4) +
     geom_hline(yintercept = 0, linetype = "dashed", colour = "grey50") +
     geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
     labs(title    = "CLL joint scores: Factor 1 vs Factor 3",
-         subtitle = "Colour = IGHV status; shape = trisomy 12 (1 = present)",
+         subtitle = if ("Trisomy12" %in% colnames(plot_df2))
+           "Colour = IGHV status; shape = trisomy 12 (1 = present)"
+         else
+           "Colour = IGHV status; trisomy 12 metadata not available in cache",
          colour   = "IGHV", shape = "Trisomy12") +
     theme_bw()
 } else {
@@ -543,44 +562,58 @@ saveRDS(cll_js, file.path(data_dir, "cll_jackstraw_results.rds"))
 ```
 
 ```{r jackstraw-load}
-cll_js <- readRDS(file.path(data_dir, "cll_jackstraw_results.rds"))
-print(cll_js)
+cll_js_path <- file.path(data_dir, "cll_jackstraw_results.rds")
+if (file.exists(cll_js_path)) {
+  cll_js <- readRDS(cll_js_path)
+  print(cll_js)
+} else {
+  cll_js <- NULL
+  message("cll_jackstraw_results.rds not found; set run_heavy = TRUE to regenerate jackstraw output.")
+}
 ```
 
 `summarize_components()` turns the jackstraw result into counts of significant
 features for each block-component pair at the chosen FDR threshold.
 
 ```{r jackstraw-sig-summary}
-sig_tbl <- summarize_components(jackstraw_result = cll_js,
-                                summary_type     = "significance")
-knitr::kable(sig_tbl, digits = 4,
-             caption = "Significant features per block/component (BH FDR 5%)")
+if (!is.null(cll_js)) {
+  sig_tbl <- summarize_components(jackstraw_result = cll_js,
+                                  summary_type     = "significance")
+  knitr::kable(sig_tbl, digits = 4,
+               caption = "Significant features per block/component (BH FDR 5%)")
+}
 ```
 
 ```{r jackstraw-pvalue-hist}
-plot_jackstraw(cll_js, type = "pvalue_hist", block = 1L, component = 1L) +
-  labs(title    = "Jackstraw: mRNA block, Factor 1",
-       subtitle = "Observed vs null F-statistic distributions") +
-  theme_bw()
+if (!is.null(cll_js)) {
+  plot_jackstraw(cll_js, type = "pvalue_hist", block = 1L, component = 1L) +
+    labs(title    = "Jackstraw: mRNA block, Factor 1",
+         subtitle = "Observed vs null F-statistic distributions") +
+    theme_bw()
+}
 ```
 
 A volcano plot shows the gene-level tradeoff between effect size and
 significance.
 
 ```{r jackstraw-volcano}
-plot_components(jackstraw_result = cll_js,
-                plot_type        = "volcano",
-                block            = 1L,
-                component        = 1L) +
-  labs(title = "Volcano: mRNA block, Factor 1 (joint)")
+if (!is.null(cll_js)) {
+  plot_components(jackstraw_result = cll_js,
+                  plot_type        = "volcano",
+                  block            = 1L,
+                  component        = 1L) +
+    labs(title = "Volcano: mRNA block, Factor 1 (joint)")
+}
 ```
 
 ```{r jackstraw-sig-genes}
-sig_mrna <- get_significant_vars(cll_js, block = 1L, component = 1L)
-cat("Significant mRNA features (Factor 1, BH alpha = 0.05):", nrow(sig_mrna), "\n")
-if (nrow(sig_mrna) > 0)
-  knitr::kable(head(sig_mrna, 20),
-               caption = "Top significant mRNA features in Factor 1")
+if (!is.null(cll_js)) {
+  sig_mrna <- get_significant_vars(cll_js, block = 1L, component = 1L)
+  cat("Significant mRNA features (Factor 1, BH alpha = 0.05):", nrow(sig_mrna), "\n")
+  if (nrow(sig_mrna) > 0)
+    knitr::kable(head(sig_mrna, 20),
+                 caption = "Top significant mRNA features in Factor 1")
+}
 ```
 
 ---

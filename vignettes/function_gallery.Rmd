@@ -767,6 +767,7 @@ knitr::kable(assoc_cont, digits = 4,
 ```{r}
 assoc_surv <- associate_components(
   fit, meta_df,
+  variable   = "time_event",
   mode       = "survival",
   time_col   = "time_event",
   status_col = "event_flag",
@@ -860,8 +861,13 @@ plot_components(stability_result = stab_load, plot_type = "stability")
 ### Wrappers: `bootstrap_joint_rank()`, `bootstrap_loading_stability()`
 
 ```{r}
-rank_draws <- bootstrap_joint_rank(blocks, c(5L, 4L, 4L), B = 5L)
-load_stab  <- bootstrap_loading_stability(fit, blocks, c(5L, 4L, 4L), B = 5L)
+rank_draws <- bootstrap_joint_rank(blocks = blocks,
+                                   initial_signal_ranks = c(5L, 4L, 4L),
+                                   B = 5L)
+load_stab  <- bootstrap_loading_stability(ajive_output = fit,
+                                          blocks = blocks,
+                                          initial_signal_ranks = c(5L, 4L, 4L),
+                                          B = 5L)
 ```
 
 
@@ -1036,15 +1042,20 @@ plot_components(jackstraw_result = js, plot_type = "jackstraw_summary")
 
 ```{r}
 sig_b1c1 <- get_significant_vars(js, block = 1L, component = 1L)
-cat("Significant features (block 1, component 1):", nrow(sig_b1c1), "\n")
-if (nrow(sig_b1c1) > 0)
+n_sig_b1c1 <- if (is.null(sig_b1c1)) 0L else nrow(sig_b1c1)
+cat("Significant features (block 1, component 1):", n_sig_b1c1, "\n")
+if (n_sig_b1c1 > 0L)
   knitr::kable(head(sig_b1c1, 8), digits = 4)
 ```
 
 ```{r}
 sig_all <- summarize_significant_vars(js)
-knitr::kable(head(sig_all, 8), digits = 4,
-             caption = "All significant features (all blocks x components)")
+if (!is.null(sig_all) && nrow(sig_all) > 0L) {
+  knitr::kable(head(sig_all, 8), digits = 4,
+               caption = "All significant features (all blocks x components)")
+} else {
+  knitr::kable(tibble::tibble(message = "No significant features at the current threshold."))
+}
 ```
 
 
@@ -1107,7 +1118,7 @@ analysis decisions, use the specialized tables and plots shown above.
 | `associate_scores_continuous(fit, meta, variable="x")` | `associate_components(fit, meta, variable="x", mode="continuous")` |
 | `associate_scores_categorical(fit, meta, variable="g")` | `associate_components(fit, meta, variable="g", mode="categorical")` |
 | `associate_scores_survival(fit, meta, time_col="t", status_col="e")` | `associate_components(fit, meta, mode="survival", time_col="t", status_col="e")` |
-| `bootstrap_joint_rank(blocks, ranks, B=5)` | `assess_stability(blocks=blocks, initial_signal_ranks=ranks, target="joint_rank", B=5)` |
+| `bootstrap_joint_rank(blocks=blocks, initial_signal_ranks=ranks, B=5)` | `assess_stability(blocks=blocks, initial_signal_ranks=ranks, target="joint_rank", B=5)` |
 | `bootstrap_loading_stability(fit, blocks, ranks, B=5)` | `assess_stability(fit, blocks, ranks, target="loadings", B=5)` |
 | `plot_stability_heatmap(stab_load)` | `plot_components(stability_result=stab_load, plot_type="stability")` |
 

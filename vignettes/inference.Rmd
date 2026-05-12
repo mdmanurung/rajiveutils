@@ -105,7 +105,9 @@ stopifnot(all(c("lower", "upper", "ci_method") %in% names(load_tbl)))
 ```
 
 ```{r loading-ci-plot}
-plot_components(fit, plot_type = "loading_ci", ci = ci_load, top_n = 25L)
+p_load <- plot_components(fit, plot_type = "loading_ci", ci = ci_load,
+                          top_n = 25L)
+print(p_load)
 ```
 
 ## How stable is the rank?
@@ -197,8 +199,11 @@ scan, and an uncertainty forest for the point effect, bootstrap interval,
 stability, and valid-refit count.
 
 ```{r association-visualization, fig.width=7, fig.height=4}
-plot_components(assoc_results = assoc_all, plot_type = "association")
+p_assoc <- plot_components(assoc_results = assoc_all,
+                           plot_type = "association")
+print(p_assoc)
 
-plot_components(assoc_results = assoc_all, plot_type = "association",
-                style = "uncertainty")
+p_unc <- plot_components(assoc_results = assoc_all, plot_type = "association",
+                         style = "uncertainty")
+print(p_unc)
 ```
