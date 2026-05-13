@@ -28,7 +28,7 @@ mkdir -p logs/vignette_renders
 JOB_LIB="${SLURM_TMPDIR:-/tmp}/rajiveplus_benchmark_heavy_lib_${SLURM_JOB_ID}"
 mkdir -p "${JOB_LIB}"
 
-RMD="vignettes/benchmarking_heavy.Rmd"
+RMD="inst/benchmarks/benchmarking_heavy.Rmd"
 
 echo "====== HEAVY BENCHMARK RENDER START ======"
 echo "Timestamp: $(date)"

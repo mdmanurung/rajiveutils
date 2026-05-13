@@ -15,7 +15,22 @@ knitr::opts_chunk$set(
   message   = FALSE,
   warning   = FALSE
 )
-data_dir <- "data"
+find_repo_root <- function(path = getwd()) {
+  path <- normalizePath(path, mustWork = TRUE)
+  repeat {
+    if (file.exists(file.path(path, "DESCRIPTION")) &&
+        file.exists(file.path(path, "_pkgdown.yml"))) {
+      return(path)
+    }
+    parent <- dirname(path)
+    if (identical(parent, path)) {
+      stop("Could not locate repository root from ", getwd(), call. = FALSE)
+    }
+    path <- parent
+  }
+}
+repo_root <- find_repo_root()
+data_dir <- file.path(repo_root, "vignettes", "data")
 dir.create(data_dir, showWarnings = FALSE, recursive = TRUE)
 ```
 

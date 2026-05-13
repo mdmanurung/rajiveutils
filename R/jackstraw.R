@@ -31,30 +31,27 @@
 ols_f_stat_matrix <- function(Y_t, x) {
   n   <- length(x)
   x_c <- x - mean(x)
-  # center each feature row
-  row_means <- rowMeans(Y_t)                      # d
-  Y_c       <- Y_t - row_means                    # d x n
-
-  xTx <- sum(x_c^2)
-
-  # beta1 for all features at once: (Y_c %*% x_c) / xTx
-  beta1 <- as.numeric(Y_c %*% x_c) / xTx         # d
-
-  # residuals: Y_c - beta1 * x_c'  (broadcasting via outer)
-  E   <- Y_c - tcrossprod(beta1, x_c)             # d x n
-
-  sse1 <- rowSums(E^2)                            # d
-  ss0  <- rowSums(Y_c^2)                          # d
-
-  # Features with zero variance: sse1 == ss0, mark as NA
-  F_stat <- (ss0 - sse1) / (sse1 / (n - 2))
+  Y_c <- Y_t - rowMeans(Y_t)
+  ss0 <- rowSums(Y_c^2)
+  F_stat <- .ols_f_stat_from_centered(Y_c, ss0, x_c)
 
   # Constant features: use a tolerance rather than exact equality to catch
   # near-zero variances caused by floating-point arithmetic.
-  is_constant <- (rowVars_fast(Y_t) < .Machine$double.eps)
+  is_constant <- (ss0 / (ncol(Y_t) - 1) < .Machine$double.eps)
   F_stat[is_constant] <- NA_real_
 
   F_stat
+}
+
+.ols_f_stat_from_centered <- function(Y_c, ss0, x_c) {
+  n <- length(x_c)
+  xTx <- sum(x_c^2)
+  xy <- as.numeric(Y_c %*% x_c)
+  ss_reg <- xy^2 / xTx
+  sse1 <- ss0 - ss_reg
+  tol <- sqrt(.Machine$double.eps) * pmax(ss0, 1)
+  sse1[sse1 < 0 & abs(sse1) <= tol] <- 0
+  ss_reg / (sse1 / (n - 2))
 }
 
 #' Fast row variances (internal helper)
@@ -137,6 +134,10 @@ compute_empirical_pvalues <- function(f_obs, f_null) {
 #' @keywords internal
 generate_null_f_stats <- function(X_t, joint_comp_scores, n_null) {
   d <- nrow(X_t)
+  n <- ncol(X_t)
+  X_c <- X_t - rowMeans(X_t)
+  ss0 <- rowSums(X_c^2)
+  is_constant <- (ss0 / (n - 1) < .Machine$double.eps)
 
   # Pre-sample feature indices for all (d * n_null) draws at once
   sampled_idx <- matrix(
@@ -152,9 +153,15 @@ generate_null_f_stats <- function(X_t, joint_comp_scores, n_null) {
     # the score vector once.  Permuting scores breaks the feature-score
     # association in the same way and yields the same null distribution:
     #   F(feature_perm, scores) =_d F(feature, scores_perm)  under H0.
-    rows        <- X_t[sampled_idx[, s], , drop = FALSE]   # d x n
+    idx <- sampled_idx[, s]
     scores_perm <- sample(joint_comp_scores)                # single permutation
-    null_f[, s] <- ols_f_stat_matrix(rows, scores_perm)
+    f_s <- .ols_f_stat_from_centered(
+      X_c[idx, , drop = FALSE],
+      ss0[idx],
+      scores_perm - mean(scores_perm)
+    )
+    f_s[is_constant[idx]] <- NA_real_
+    null_f[, s] <- f_s
   }
 
   null_f

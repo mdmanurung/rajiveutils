@@ -15,7 +15,9 @@ RobRSVD.all(data, nrank = min(dim(data)), svdinit = NULL)
 If NULL (default), computed lazily after input validation.}
 }
 \value{
-List with entries \code{d}, \code{u}, \code{v}.
+List with entries \code{d}, \code{u}, \code{v}.  When
+  \code{nrank <= 0}, returns \code{numeric(0)} singular values and
+  zero-column \code{u}/\code{v} matrices without calling the C++ backend.
 }
 \description{
 Thin R wrapper around the RcppArmadillo implementation \code{RobRSVD_all_cpp}.

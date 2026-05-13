@@ -10,7 +10,9 @@
 #' @param svdinit List or NULL. Optional classical SVD used for initialization.
 #'   If NULL (default), computed lazily after input validation.
 #' @importFrom stats median
-#' @return List with entries \code{d}, \code{u}, \code{v}.
+#' @return List with entries \code{d}, \code{u}, \code{v}.  When
+#'   \code{nrank <= 0}, returns \code{numeric(0)} singular values and
+#'   zero-column \code{u}/\code{v} matrices without calling the C++ backend.
 
 RobRSVD.all <- function(data, nrank = min(dim(data)), svdinit = NULL)
 {
@@ -26,13 +28,27 @@ RobRSVD.all <- function(data, nrank = min(dim(data)), svdinit = NULL)
       class = "rajiveplus_invalid_input"
     )
   }
+  nrank <- as.integer(nrank)
+  if (length(nrank) != 1L || is.na(nrank)) {
+    cli::cli_abort(
+      c("`nrank` must be a single integer."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
+  if (nrank <= 0L) {
+    return(list(
+      d = numeric(0),
+      u = matrix(0, nrow = nrow(data), ncol = 0L),
+      v = matrix(0, nrow = ncol(data), ncol = 0L)
+    ))
+  }
   if (is.null(svdinit)) {
     svdinit <- svd(data)
   }
 
   RobRSVD_all_cpp(
     data   = data,
-    nrank  = as.integer(nrank),
+    nrank  = nrank,
     sinit1 = svdinit$d[1],
     uinit1 = svdinit$u[, 1, drop = TRUE],
     vinit1 = svdinit$v[, 1, drop = TRUE]

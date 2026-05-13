@@ -1,6 +1,6 @@
 ---
 title: "What Do Microbial Kingdoms Share?"
-author: "RaJIVEutils development team"
+author: "rajiveplus development team"
 date: "`r Sys.Date()`"
 output:
   rmarkdown::html_vignette:

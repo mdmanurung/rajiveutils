@@ -1,6 +1,31 @@
 # rajiveplus (development)
 
+## Performance
+
+- `jackstraw_rajive()` null F-statistic generation now reuses centered block
+  rows and computes simple-regression F-statistics from sufficient statistics.
+  The refactor preserves the previous RNG/result contract within `1e-10` in
+  old-vs-new tests while reducing elapsed time and allocations in the
+  PERF-002 benchmark.
+
 ## Bug fixes
+
+- `extract_components(..., what = "variance", format = "long")` and
+  `fortify.rajive(..., what = "variance")` now return tidy columns
+  `block`, `component`, and `proportion`; the historical wide
+  `Joint`/`Indiv`/`Resid` output remains the default for `format = "wide"`.
+
+- Categorical and batch association helpers now accept only `NULL` or
+  `"kruskal"` and report `"kruskal"` truthfully.  Unsupported labels such as
+  `"anova"` now error with class `rajiveplus_invalid_input` instead of being
+  reported without changing the underlying test.
+
+- `assess_stability(method = "permutation")` now errors explicitly with class
+  `rajiveplus_invalid_input`; permutation stability and `n_perm` remain
+  reserved for a future implementation.
+
+- `RobRSVD.all(nrank <= 0)` now returns `numeric(0)` singular values and
+  zero-column `u`/`v` matrices before entering the C++ backend.
 
 - `RobRSVD_all_cpp()` now zero-initialises the `d`/`u`/`v` accumulators
   and trims them to the number of components actually fitted before
@@ -132,6 +157,14 @@
   stability.
 
 ## Other changes
+
+- The heavy benchmarking artifact moved from `vignettes/benchmarking_heavy.Rmd`
+  to `inst/benchmarks/benchmarking_heavy.Rmd`.  It remains SLURM-only and
+  writes/reads caches explicitly under repo `vignettes/data`.
+
+- Added audit regression tests for variance fortification, association method
+  validation, stability method validation, zero-rank robust SVD, and
+  pkgdown/vignette metadata.
 
 - `data_heatmap()` is now exported. The internal `geom_raster()` mapping now
   uses `scale_y_discrete()` / `scale_x_discrete()` (previously

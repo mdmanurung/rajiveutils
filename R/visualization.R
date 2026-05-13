@@ -178,11 +178,36 @@ extract_components <- function(ajive_output = NULL,
     }
     out <- as.data.frame(showVarExplained_robust(ajive_output, blocks),
                          stringsAsFactors = FALSE)
-    if (!is.null(block) && "Block" %in% names(out)) {
+    block_ids <- seq_len(nrow(out))
+    if (!is.null(block)) {
       b <- as.integer(block)
-      out <- out[out$Block %in% b | out$Block %in% paste0("block", b), , drop = FALSE]
+      keep <- block_ids %in% b
+      out <- out[keep, , drop = FALSE]
+      block_ids <- block_ids[keep]
     }
-    return(out)
+    if (format == "wide") {
+      return(out)
+    }
+    components <- names(out)
+    if (nrow(out) == 0L) {
+      return(data.frame(
+        block = integer(0),
+        component = character(0),
+        proportion = numeric(0),
+        stringsAsFactors = FALSE
+      ))
+    }
+    long_rows <- lapply(seq_along(block_ids), function(i) {
+      data.frame(
+        block = block_ids[[i]],
+        component = components,
+        proportion = as.numeric(out[i, components]),
+        stringsAsFactors = FALSE
+      )
+    })
+    long <- do.call(rbind, long_rows)
+    rownames(long) <- NULL
+    return(long)
   }
 
   if (what == "significance") {
@@ -1363,8 +1388,9 @@ plot_components <- function(ajive_output = NULL,
 #'   Ignored when \code{variable} is supplied.
 #' @param method Character scalar.  Test method; defaults are Pearson
 #'   correlation (\code{"pearson"}) for continuous, Kruskal-Wallis
-#'   (\code{"kruskal"}) for categorical, and log-rank (\code{"logrank"})
-#'   for survival.
+#'   (\code{"kruskal"}) for categorical/batch, and log-rank
+#'   (\code{"logrank"}) for survival.  Categorical and batch modes currently
+#'   accept only \code{NULL} or \code{"kruskal"}; unsupported labels error.
 #' @param adjust Character scalar.  P-value adjustment method passed to
 #'   \code{\link[stats]{p.adjust}}.  Default \code{"BH"}.
 #' @param time_col Character scalar.  Name of the time column in
@@ -1832,6 +1858,17 @@ associate_all_components <- function(ajive_output,
 }
 
 
+.kruskal_method <- function(method, mode) {
+  if (is.null(method)) return("kruskal")
+  if (identical(method, "kruskal")) return("kruskal")
+  cli::cli_abort(
+    c("Unsupported association method for categorical scores.",
+      "x" = "`method` must be \"kruskal\" for mode = \"{mode}\".",
+      "i" = "The implementation runs stats::kruskal.test()."),
+    class = "rajiveplus_invalid_input"
+  )
+}
+
 # Internal: .associate_one — single variable x component test dispatch
 .associate_one <- function(scores_j, y, mode, method, time_col, status_col,
                            split, metadata) {
@@ -1846,7 +1883,7 @@ associate_all_components <- function(ajive_output,
     },
 
     categorical = {
-      meth <- if (!is.null(method)) method else "kruskal"
+      meth <- .kruskal_method(method, mode)
       kt   <- stats::kruskal.test(scores_j ~ factor(y))
       list(stat = unname(kt$statistic), p_value = kt$p.value, method = meth)
     },
@@ -1904,7 +1941,7 @@ associate_all_components <- function(ajive_output,
     },
 
     batch = {
-      meth <- if (!is.null(method)) method else "kruskal"
+      meth <- .kruskal_method(method, mode)
       kt   <- stats::kruskal.test(scores_j ~ factor(y))
       list(stat = unname(kt$statistic), p_value = kt$p.value, method = meth)
     }
@@ -1938,11 +1975,13 @@ associate_all_components <- function(ajive_output,
 #'   block.
 #' @param target Character scalar.  One of \code{"joint_rank"},
 #'   \code{"loadings"}, or \code{"components"}.
-#' @param method Character scalar.  \code{"bootstrap"} (default) or
-#'   \code{"permutation"}.
+#' @param method Character scalar.  Only \code{"bootstrap"} is currently
+#'   implemented.  \code{"permutation"} is reserved and errors explicitly
+#'   rather than silently returning bootstrap results.
 #' @param B Positive integer.  Number of bootstrap replicates.  Default 100.
-#' @param n_perm Positive integer.  Number of permutations (only used when
-#'   \code{method = "permutation"}).  Default 100.
+#' @param n_perm Reserved positive integer for a future permutation stability
+#'   implementation.  Currently unused because \code{method = "permutation"}
+#'   is rejected.
 #' @param sample_frac Numeric in (0, 1].  Fraction of samples to draw in each
 #'   bootstrap replicate.  Default 0.8.
 #' @param num_cores Positive integer.  Number of cores for parallel execution.
@@ -2001,6 +2040,13 @@ assess_stability <- function(ajive_output = NULL,
 
   target <- match.arg(target)
   method <- match.arg(method)
+  if (method == "permutation") {
+    cli::cli_abort(
+      c("Permutation stability is not implemented.",
+        "i" = "Use `method = \"bootstrap\"` for the current stability summaries."),
+      class = "rajiveplus_invalid_input"
+    )
+  }
 
   if (!is.list(blocks) || length(blocks) == 0L)
     stop("`blocks` must be a non-empty list of matrices.", call. = FALSE)

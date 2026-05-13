@@ -89,8 +89,9 @@ Ignored when \code{variable} is supplied.}
 
 \item{method}{Character scalar.  Test method; defaults are Pearson
 correlation (\code{"pearson"}) for continuous, Kruskal-Wallis
-(\code{"kruskal"}) for categorical, and log-rank (\code{"logrank"})
-for survival.}
+(\code{"kruskal"}) for categorical/batch, and log-rank
+(\code{"logrank"}) for survival.  Categorical and batch modes currently
+accept only \code{NULL} or \code{"kruskal"}; unsupported labels error.}
 
 \item{adjust}{Character scalar.  P-value adjustment method passed to
 \code{\link[stats]{p.adjust}}.  Default \code{"BH"}.}

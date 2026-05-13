@@ -25,9 +25,10 @@ The package vignette is deliberately light. It checks that the current
 `rajiveplus` runtime path can be compared with a locally installed copy of the
 original `RaJIVE` package, but it does not run the full benchmark grid.
 
-The full benchmark artifact lives in `benchmarking_heavy.Rmd` and is rendered
-only by SLURM after this package-vignette suite succeeds. That heavy artifact
-regenerates the cache files used for release notes and performance inspection:
+The full benchmark artifact lives in `inst/benchmarks/benchmarking_heavy.Rmd`
+and is rendered only by SLURM after this package-vignette suite succeeds. That
+heavy artifact regenerates the cache files used for release notes and
+performance inspection:
 
 ```{r cache-status}
 cache_files <- c(

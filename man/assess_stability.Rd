@@ -55,13 +55,15 @@ block.}
 \item{target}{Character scalar.  One of \code{"joint_rank"},
 \code{"loadings"}, or \code{"components"}.}
 
-\item{method}{Character scalar.  \code{"bootstrap"} (default) or
-\code{"permutation"}.}
+\item{method}{Character scalar.  Only \code{"bootstrap"} is currently
+implemented.  \code{"permutation"} is reserved and errors explicitly
+rather than silently returning bootstrap results.}
 
 \item{B}{Positive integer.  Number of bootstrap replicates.  Default 100.}
 
-\item{n_perm}{Positive integer.  Number of permutations (only used when
-\code{method = "permutation"}).  Default 100.}
+\item{n_perm}{Reserved positive integer for a future permutation stability
+implementation.  Currently unused because \code{method = "permutation"}
+is rejected.}
 
 \item{sample_frac}{Numeric in (0, 1].  Fraction of samples to draw in each
 bootstrap replicate.  Default 0.8.}

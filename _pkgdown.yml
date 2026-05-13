@@ -24,6 +24,7 @@ articles:
     navbar: ~
     contents:
       - benchmarking
+      - inference
       - jackstraw_scaling
       - cll_application
       - function_gallery
@@ -62,6 +63,7 @@ reference:
     desc: "Quantify and visualise explained variance."
     contents:
       - showVarExplained_robust
+      - joint_variance_partition
       - plot_variance_explained
 
   - title: "Visualisation"
@@ -83,10 +85,12 @@ reference:
       - summarize_components
       - plot_components
       - associate_components
+      - associate_all_components
       - associate_scores_continuous
       - associate_scores_categorical
       - associate_scores_survival
       - assess_stability
+      - rajive_ci
       - bootstrap_joint_rank
       - bootstrap_loading_stability
       - plot_stability_heatmap
