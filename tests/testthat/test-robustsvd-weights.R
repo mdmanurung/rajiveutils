@@ -72,6 +72,19 @@ test_that("weighted robust SVD can shrink singular values", {
             norm(rajiveplus:::svd_reconstruction(base), "F"))
 })
 
+test_that("missMDA-style shrinkage uses discarded singular values", {
+  sv <- c(5, 3, 2, 1)
+  got <- rajiveplus:::.shrink_singular_values(sv, rank = 2,
+                                              shrinkage = "missmda",
+                                              shrinkage_coeff = 1,
+                                              n_rows = 10,
+                                              n_cols = 4)
+  denom <- (10 - 1) * 4 - (10 - 1) * 2 - 4 * 2 + 2^2
+  sigma2 <- 10 * 4 / min(4, 10 - 1) * sum(c(2, 1)^2 / denom)
+  sigma2 <- min(sigma2, 2^2)
+  expect_equal(got, c((5^2 - sigma2) / 5, (3^2 - sigma2) / 3))
+})
+
 test_that("RobRSVD.all validates weight dimensions", {
   X <- matrix(rnorm(20), nrow = 5)
   W <- matrix(1, nrow = 4, ncol = 4)

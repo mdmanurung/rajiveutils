@@ -499,7 +499,11 @@
 #' @param rank_repeats Number of repeated holdout splits to average for native
 #'   automatic rank diagnostics.
 #' @param svd_shrinkage Non-negative singular-value soft-threshold for the
-#'   weighted low-rank completion steps used by native missing-data SVDs.
+#'   weighted low-rank completion steps used by native missing-data SVDs, or
+#'   \code{"missmda"} for a missMDA-inspired shrinkage based on discarded
+#'   singular values.
+#' @param svd_shrinkage_coeff Positive coefficient for \code{svd_shrinkage =
+#'   "missmda"}. Values above 1 shrink more strongly.
 #' @param n_refits Number of aligned refits for \code{uncertainty =
 #'   "bootstrap"} or \code{"mi"}.
 #' @param censoring Optional list of censoring metadata, for example
@@ -515,6 +519,7 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
                                    rank_candidates = NULL,
                                    rank_repeats = 5L,
                                    svd_shrinkage = 0,
+                                   svd_shrinkage_coeff = 1,
                                    n_refits = 5L,
                                    censoring = NULL,
                                    sensitivity = NULL) {
@@ -523,10 +528,23 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
       rank_repeats < 1L) {
     rank_repeats <- 1L
   }
-  svd_shrinkage <- as.numeric(svd_shrinkage)
-  if (length(svd_shrinkage) != 1L || is.na(svd_shrinkage) ||
-      !is.finite(svd_shrinkage) || svd_shrinkage < 0) {
-    svd_shrinkage <- 0
+  if (is.character(svd_shrinkage)) {
+    svd_shrinkage <- match.arg(tolower(svd_shrinkage),
+                               c("none", "missmda"))
+    if (identical(svd_shrinkage, "none")) svd_shrinkage <- 0
+  } else {
+    svd_shrinkage <- as.numeric(svd_shrinkage)
+    if (length(svd_shrinkage) != 1L || is.na(svd_shrinkage) ||
+        !is.finite(svd_shrinkage) || svd_shrinkage < 0) {
+      svd_shrinkage <- 0
+    }
+  }
+  svd_shrinkage_coeff <- as.numeric(svd_shrinkage_coeff)
+  if (length(svd_shrinkage_coeff) != 1L ||
+      is.na(svd_shrinkage_coeff) ||
+      !is.finite(svd_shrinkage_coeff) ||
+      svd_shrinkage_coeff <= 0) {
+    svd_shrinkage_coeff <- 1
   }
   list(
     center = isTRUE(center),
@@ -536,6 +554,7 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
     rank_candidates = rank_candidates,
     rank_repeats = rank_repeats,
     svd_shrinkage = svd_shrinkage,
+    svd_shrinkage_coeff = svd_shrinkage_coeff,
     n_refits = as.integer(n_refits),
     censoring = censoring,
     sensitivity = sensitivity
@@ -657,6 +676,7 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
 .fit_incomplete_block_decomposition <- function(x, mask, joint_scores,
                                                 initial_signal_rank,
                                                 svd_shrinkage = 0,
+                                                svd_shrinkage_coeff = 1,
                                                 full = TRUE,
                                                 block_name = NULL) {
   joint_rank <- ncol(joint_scores)
@@ -672,7 +692,8 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
   indiv_rank <- max(0L, as.integer(initial_signal_rank) - joint_rank)
   if (indiv_rank > 0L) {
     indiv_svd <- RobRSVD.all(residual_seed, nrank = indiv_rank, weights = mask,
-                             shrinkage = svd_shrinkage)
+                             shrinkage = svd_shrinkage,
+                             shrinkage_coeff = svd_shrinkage_coeff)
     individual_full <- svd_reconstruction(indiv_svd)
     individual_full[rowSums(mask) == 0L, ] <- 0
     individual_full[, colSums(mask) == 0L] <- 0
@@ -864,7 +885,8 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
     get_svd_robustH(preprocess$blocks[[k]],
                     rank = min(initial_signal_ranks[[k]], min(dim(preprocess$blocks[[k]]))),
                     weights = mask[[k]],
-                    shrinkage = control$svd_shrinkage)
+                    shrinkage = control$svd_shrinkage,
+                    shrinkage_coeff = control$svd_shrinkage_coeff)
   })
 
   signal_scores <- lapply(seq_along(block_svd), function(k) {
@@ -898,6 +920,7 @@ rajive_missing_control <- function(center = FALSE, scale = FALSE,
       preprocess$blocks[[k]], mask[[k]], joint_scores,
       initial_signal_rank = initial_signal_ranks[[k]],
       svd_shrinkage = control$svd_shrinkage,
+      svd_shrinkage_coeff = control$svd_shrinkage_coeff,
       full = full,
       block_name = preprocess$block_names[[k]]
     )

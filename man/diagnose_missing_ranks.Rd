@@ -48,5 +48,7 @@ Native automatic rank selection picks the candidate minimising
   plus a parsimony penalty of 0.001 per joint component. When possible, the
   holdout units are whole observed sample rows within a block, so the
   diagnostic scores how well cross-block joint structure predicts
-  block/sample rows that were hidden from fitting.
+  block/sample rows that were hidden from fitting. The held-out error is
+  averaged over \code{rank_repeats} splits from
+  \code{\link{rajive_missing_control}}.
 }

@@ -10,6 +10,9 @@ rajive_missing_control(
   normalize = FALSE,
   min_component_support = 2L,
   rank_candidates = NULL,
+  rank_repeats = 5L,
+  svd_shrinkage = 0,
+  svd_shrinkage_coeff = 1,
   n_refits = 5L,
   censoring = NULL,
   sensitivity = NULL
@@ -27,6 +30,17 @@ supporting feature has fewer than this many observed entries is labelled
 \item{rank_candidates}{Optional non-negative integer vector for
 native candidate-rank diagnostics. When \code{NULL}, native automatic rank
 selection evaluates \code{0:min(initial_signal_ranks)}.}
+
+\item{rank_repeats}{Number of repeated holdout splits to average for native
+automatic rank diagnostics.}
+
+\item{svd_shrinkage}{Non-negative singular-value soft-threshold for the
+weighted low-rank completion steps used by native missing-data SVDs, or
+\code{"missmda"} for a missMDA-inspired shrinkage based on discarded
+singular values.}
+
+\item{svd_shrinkage_coeff}{Positive coefficient for \code{svd_shrinkage =
+"missmda"}. Values above 1 shrink more strongly.}
 
 \item{n_refits}{Number of aligned refits for \code{uncertainty =
 "bootstrap"} or \code{"mi"}.}

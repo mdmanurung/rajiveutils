@@ -58,6 +58,14 @@
   interpolate observed entries and make residual variance look artificially
   close to zero.
 
+- `rajive_missing_control()` gains `rank_repeats`, `svd_shrinkage`, and
+  `svd_shrinkage_coeff`.
+  Native automatic rank diagnostics now average held-out prediction error over
+  repeated holdout splits by default. `svd_shrinkage` supports fixed
+  soft-thresholding or `svd_shrinkage = "missmda"`, which shrinks retained
+  singular values using a discarded-singular-value noise estimate inspired by
+  missMDA's regularized imputation algorithms.
+
 ## Statistical changes
 
 - `get_random_direction_bound_robustH()` now uses classical `base::svd()`

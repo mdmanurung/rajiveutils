@@ -99,7 +99,9 @@ knitr::kable(sample_accounting)
 Native mode excludes missing cells from preprocessing, rank diagnostics, and the
 observed-entry objective. Here `joint_rank = NA` triggers native candidate-rank
 diagnostics. Because `rank_candidates` is not set, the default candidate set is
-`0:min(initial_signal_ranks)`.
+`0:min(initial_signal_ranks)`. The weighted low-rank completion steps use a
+missMDA-style singular-value shrinkage term to keep high initial signal ranks
+from overfitting observed entries.
 
 ```{r fit}
 
@@ -117,6 +119,9 @@ fit_union <- Rajive(
     center = TRUE,
     scale = TRUE,
     normalize = TRUE,
+    rank_repeats = 5L,
+    svd_shrinkage = "missmda",
+    svd_shrinkage_coeff = 1,
     n_refits = 10L
   ),
   seed = 4202

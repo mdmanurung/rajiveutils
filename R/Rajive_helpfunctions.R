@@ -8,19 +8,24 @@
 #'   \code{\link{RobRSVD.all}}.
 #' @param shrinkage Non-negative singular-value shrinkage forwarded to
 #'   \code{\link{RobRSVD.all}}.
+#' @param shrinkage_coeff Positive coefficient forwarded to
+#'   \code{\link{RobRSVD.all}} when \code{shrinkage = "missmda"}.
 #'
 #' @return List. The SVD of X.
 
 
 
-get_svd_robustH <- function(X, rank=NULL, weights = NULL, shrinkage = 0){
+get_svd_robustH <- function(X, rank=NULL, weights = NULL, shrinkage = 0,
+                            shrinkage_coeff = 1){
 
   if(is.null(rank)){
-    decomposition <- RobRSVD.all(X, weights = weights, shrinkage = shrinkage)
+    decomposition <- RobRSVD.all(X, weights = weights, shrinkage = shrinkage,
+                                 shrinkage_coeff = shrinkage_coeff)
     decomposition
   } else{
     decomposition <- RobRSVD.all(X, nrank = rank, weights = weights,
-                                 shrinkage = shrinkage)
+                                 shrinkage = shrinkage,
+                                 shrinkage_coeff = shrinkage_coeff)
     decomposition
   }
 

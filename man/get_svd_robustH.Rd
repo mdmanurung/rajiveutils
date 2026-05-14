@@ -5,7 +5,13 @@
 \title{Computes the robust SVD of a matrix
 Using robRsvd}
 \usage{
-get_svd_robustH(X, rank = NULL, weights = NULL)
+get_svd_robustH(
+  X,
+  rank = NULL,
+  weights = NULL,
+  shrinkage = 0,
+  shrinkage_coeff = 1
+)
 }
 \arguments{
 \item{X}{Matrix. X matrix.}
@@ -14,6 +20,12 @@ get_svd_robustH(X, rank = NULL, weights = NULL)
 
 \item{weights}{Optional observed-entry weight/mask matrix forwarded to
 \code{\link{RobRSVD.all}}.}
+
+\item{shrinkage}{Non-negative singular-value shrinkage forwarded to
+\code{\link{RobRSVD.all}}.}
+
+\item{shrinkage_coeff}{Positive coefficient forwarded to
+\code{\link{RobRSVD.all}} when \code{shrinkage = "missmda"}.}
 }
 \value{
 List. The SVD of X.
