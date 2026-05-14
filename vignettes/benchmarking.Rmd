@@ -56,7 +56,7 @@ This vignette does not install packages from the network. The SLURM render node
 must already have the local benchmark dependencies available.
 
 ```{r setup}
-required <- c("rajiveplus", "RaJIVE", "ggplot2")
+required <- c("rajiveplus", "ggplot2")
 missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing) > 0L) {
   stop(
@@ -66,14 +66,16 @@ if (length(missing) > 0L) {
     call. = FALSE
   )
 }
+has_rajive_reference <- requireNamespace("RaJIVE", quietly = TRUE)
 
 library(rajiveplus)
 library(ggplot2)
 ```
 
 Both packages export a function named `Rajive()`, so the comparison uses
-explicit namespaces. The `rajiveplus` call uses `identifiability_norm = "l1"`
-only for parity with the original implementation's post-selection filter.
+explicit namespaces when `RaJIVE` is installed. The `rajiveplus` call uses
+`identifiability_norm = "l1"` only for parity with the original
+implementation's post-selection filter.
 
 ## Tiny smoke benchmark
 
@@ -106,15 +108,21 @@ t_ru <- elapsed(
   )
 )
 
-t_rj <- elapsed(
-  RaJIVE::Rajive(blocks, c(2L, 2L), joint_rank = 1L, full = FALSE)
-)
-
 timings <- data.frame(
-  package = c("rajiveplus", "RaJIVE"),
-  elapsed_s = c(t_ru, t_rj),
+  package = "rajiveplus",
+  elapsed_s = t_ru,
   stringsAsFactors = FALSE
 )
+if (has_rajive_reference) {
+  t_rj <- elapsed(
+    RaJIVE::Rajive(blocks, c(2L, 2L), joint_rank = 1L, full = FALSE)
+  )
+  timings <- rbind(
+    timings,
+    data.frame(package = "RaJIVE", elapsed_s = t_rj,
+               stringsAsFactors = FALSE)
+  )
+}
 knitr::kable(timings, digits = 3, caption = "Tiny smoke benchmark")
 ```
 
@@ -130,7 +138,11 @@ ggplot(timings, aes(x = package, y = elapsed_s, fill = package)) +
 ```
 
 ```{r smoke-ratio}
-cat("Smoke-test speedup:", round(t_rj / t_ru, 1), "x\n")
+if (has_rajive_reference) {
+  cat("Smoke-test speedup:", round(t_rj / t_ru, 1), "x\n")
+} else {
+  cat("Reference package RaJIVE is not installed; rendered rajiveplus-only smoke test.\n")
+}
 ```
 
 ## Heavy benchmark handoff

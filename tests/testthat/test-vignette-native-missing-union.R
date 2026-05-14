@@ -1,14 +1,14 @@
-test_that("simulated-data inference vignette renders", {
+test_that("native missing union-sample vignette renders", {
   skip_if_not_installed("rmarkdown")
 
-  vignette_path <- test_path("../../vignettes/inference.Rmd")
+  vignette_path <- test_path("../../vignettes/native_missing_union.Rmd")
   if (!file.exists(vignette_path)) {
-    vignette_path <- file.path(getwd(), "vignettes", "inference.Rmd")
+    vignette_path <- file.path(getwd(), "vignettes", "native_missing_union.Rmd")
   }
   skip_if_not(file.exists(vignette_path),
               "source vignette is not available in this check environment")
 
-  out_dir <- tempfile("rajiveplus-vignette-")
+  out_dir <- tempfile("rajiveplus-native-missing-union-")
   dir.create(out_dir)
   rendered <- rmarkdown::render(
     input = vignette_path,

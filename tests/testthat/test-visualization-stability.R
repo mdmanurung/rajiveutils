@@ -38,7 +38,8 @@ test_that("assess_stability components is permutation/sign invariant via Procrus
       B = 10,
       sample_frac = 0.75
     ),
-    Rajive = fake_rajive
+    Rajive = fake_rajive,
+    .package = "rajiveplus"
   )
 
   expect_true(all(out$mean_correlation > 0.95))
@@ -103,7 +104,8 @@ test_that("assess_stability returns rank_match_rate attribute", {
       B = 8,
       sample_frac = 0.75
     ),
-    Rajive = fake_full_rank
+    Rajive = fake_full_rank,
+    .package = "rajiveplus"
   )
 
   expect_true(!is.null(attr(out_full, "rank_match_rate")))
@@ -128,7 +130,8 @@ test_that("assess_stability returns rank_match_rate attribute", {
       B = 8,
       sample_frac = 0.75
     ),
-    Rajive = fake_wobble
+    Rajive = fake_wobble,
+    .package = "rajiveplus"
   )
 
   rmr <- attr(out_wobble, "rank_match_rate")

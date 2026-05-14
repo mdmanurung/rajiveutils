@@ -208,7 +208,8 @@ test_that("bootstrap refits use num_cores for outer replicates and serial inner 
       num_cores = 5L
     ),
     .rajive_parallel_lapply = fake_parallel,
-    .Rajive_rank_only = fake_rank
+    .Rajive_rank_only = fake_rank,
+    .package = "rajiveplus"
   )
   expect_equal(seen_single, c(1L, 1L))
 
@@ -238,7 +239,8 @@ test_that("bootstrap refits use num_cores for outer replicates and serial inner 
       num_cores = 6L
     ),
     .rajive_parallel_lapply = fake_parallel,
-    Rajive = fake_scores
+    Rajive = fake_scores,
+    .package = "rajiveplus"
   )
   expect_equal(seen_multi, c(1L, 1L))
 })
@@ -273,7 +275,8 @@ test_that("bootstrap refits are parallelized at replicate level when num_cores >
       num_cores = 2L
     ),
     .rajive_parallel_lapply = fake_parallel,
-    .Rajive_rank_only = fake_rank_only
+    .Rajive_rank_only = fake_rank_only,
+    .package = "rajiveplus"
   )
 
   expect_true(seen_parallel)
@@ -311,7 +314,8 @@ test_that("bootstrap refits inherit fitted identifiability_norm", {
       B = 2L,
       keep = "scores"
     ),
-    Rajive = fake_full
+    Rajive = fake_full,
+    .package = "rajiveplus"
   )
   expect_equal(seen, c("l1", "l1"))
 
@@ -326,7 +330,8 @@ test_that("bootstrap refits inherit fitted identifiability_norm", {
       keep = "scores",
       identifiability_norm = "l2"
     ),
-    Rajive = fake_full
+    Rajive = fake_full,
+    .package = "rajiveplus"
   )
   expect_equal(seen, c("l2", "l2"))
 })
@@ -355,7 +360,8 @@ test_that("rank-only bootstrap refits default identifiability_norm to L2 quietly
         B = 2L,
         keep = "joint_rank"
       ),
-      .Rajive_rank_only = fake_rank_only
+      .Rajive_rank_only = fake_rank_only,
+      .package = "rajiveplus"
     )
   )
   expect_equal(seen, c("l2", "l2"))
@@ -397,7 +403,8 @@ test_that("multi-score bootstrap refits inherit fitted identifiability_norm", {
       targets = targets,
       B = 2L
     ),
-    Rajive = fake_full
+    Rajive = fake_full,
+    .package = "rajiveplus"
   )
   expect_equal(seen, c("l1", "l1"))
 })
@@ -434,7 +441,8 @@ test_that(".rajive_bootstrap uses rank-only refits only for rank-only payloads",
       keep = c("joint_rank", "indices")
     ),
     Rajive = fake_full,
-    .Rajive_rank_only = fake_rank_only
+    .Rajive_rank_only = fake_rank_only,
+    .package = "rajiveplus"
   )
   expect_equal(rank_only_calls, 2L)
   expect_equal(full_calls, 0L)
@@ -449,7 +457,8 @@ test_that(".rajive_bootstrap uses rank-only refits only for rank-only payloads",
       keep = "scores"
     ),
     Rajive = fake_full,
-    .Rajive_rank_only = fake_rank_only
+    .Rajive_rank_only = fake_rank_only,
+    .package = "rajiveplus"
   )
   expect_equal(rank_only_calls, 2L)
   expect_equal(full_calls, 2L)

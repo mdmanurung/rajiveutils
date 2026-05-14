@@ -5,12 +5,15 @@
 \title{Computes the robust SVD of a matrix
 Using robRsvd}
 \usage{
-get_svd_robustH(X, rank = NULL)
+get_svd_robustH(X, rank = NULL, weights = NULL)
 }
 \arguments{
 \item{X}{Matrix. X matrix.}
 
 \item{rank}{Integer. Rank of SVD decomposition}
+
+\item{weights}{Optional observed-entry weight/mask matrix forwarded to
+\code{\link{RobRSVD.all}}.}
 }
 \value{
 List. The SVD of X.

@@ -25,6 +25,7 @@ articles:
     contents:
       - benchmarking
       - inference
+      - native_missing_union
       - jackstraw_scaling
       - cll_application
       - function_gallery
@@ -52,6 +53,18 @@ reference:
       - get_block_scores
       - get_block_loadings
       - get_block_matrix
+
+  - title: "Native missing-data support"
+    desc: "Fit, diagnose, and reconstruct native observed-entry incomplete-data decompositions."
+    contents:
+      - rajive_missing_control
+      - get_missingness_info
+      - get_estimability
+      - get_reconstructed_blocks
+      - get_missing_diagnostics
+      - diagnose_missing_ranks
+      - get_missing_uncertainty
+      - plot_missingness
 
   - title: "S3 methods for `rajive` objects"
     desc: "print and summary methods."

@@ -124,7 +124,9 @@ test_that("RobRSVD1_cpp matches R: tall matrix (rows > cols)", {
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
   r_res  <- .RobRSVD1_R(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
-  cpp_res <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                       uinit = sv0$u[, 1],
+                                       vinit = sv0$v[, 1])
 
   expect_equal(r_res$s, cpp_res$s, tolerance = 1e-7)
   # sign-invariant projection matrices
@@ -141,7 +143,9 @@ test_that("RobRSVD1_cpp matches R: wide matrix (cols > rows)", {
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
   r_res  <- .RobRSVD1_R(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
-  cpp_res <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                       uinit = sv0$u[, 1],
+                                       vinit = sv0$v[, 1])
 
   expect_equal(r_res$s, cpp_res$s, tolerance = 1e-7)
   expect_equal(tcrossprod(matrix(r_res$u)),   tcrossprod(matrix(cpp_res$u)),   tolerance = 1e-7)
@@ -156,7 +160,9 @@ test_that("RobRSVD1_cpp matches R: square matrix", {
   X      <- matrix(rnorm(m * m), m, m)
   sv0    <- svd(X)
   r_res  <- .RobRSVD1_R(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
-  cpp_res <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                       uinit = sv0$u[, 1],
+                                       vinit = sv0$v[, 1])
 
   expect_equal(r_res$s, cpp_res$s, tolerance = 1e-7)
   expect_equal(tcrossprod(matrix(r_res$u)),   tcrossprod(matrix(cpp_res$u)),   tolerance = 1e-7)
@@ -174,7 +180,9 @@ test_that("RobRSVD1_cpp matches R: near-rank-1 matrix with small noise", {
   X      <- 10 * outer(u_true, v_true) + 0.01 * matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
   r_res  <- .RobRSVD1_R(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
-  cpp_res <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                       uinit = sv0$u[, 1],
+                                       vinit = sv0$v[, 1])
 
   expect_equal(r_res$s, cpp_res$s, tolerance = 1e-7)
   expect_equal(tcrossprod(matrix(r_res$u)),   tcrossprod(matrix(cpp_res$u)),   tolerance = 1e-7)
@@ -188,8 +196,11 @@ test_that("RobRSVD1_cpp matches R: custom huberk, niter, tol", {
   sv0    <- svd(X)
   r_res   <- .RobRSVD1_R(X, huberk = 1.0, niter = 200, tol = 1e-4,
                           sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
-  cpp_res <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1],
-                          huberk = 1.0, niter = 200L, tol = 1e-4)
+  cpp_res <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                       uinit = sv0$u[, 1],
+                                       vinit = sv0$v[, 1],
+                                       huberk = 1.0, niter = 200L,
+                                       tol = 1e-4)
 
   expect_equal(r_res$s, cpp_res$s, tolerance = 1e-7)
   expect_equal(tcrossprod(matrix(r_res$u)),   tcrossprod(matrix(cpp_res$u)),   tolerance = 1e-7)
@@ -204,7 +215,9 @@ test_that("RobRSVD1_cpp matches R: matrix with outliers", {
   X[sample(m * n, size = 10)] <- rnorm(10, mean = 0, sd = 20)
   sv0    <- svd(X)
   r_res  <- .RobRSVD1_R(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
-  cpp_res <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                       uinit = sv0$u[, 1],
+                                       vinit = sv0$v[, 1])
 
   expect_equal(r_res$s, cpp_res$s, tolerance = 1e-7)
   expect_equal(tcrossprod(matrix(r_res$u)),   tcrossprod(matrix(cpp_res$u)),   tolerance = 1e-7)
@@ -222,8 +235,10 @@ test_that("RobRSVD_all_cpp matches R: rank-3 tall matrix", {
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
   r_res   <- .RobRSVD_all_R(X, nrank = nrank, svdinit = sv0)
-  cpp_res <- RobRSVD_all_cpp(X, nrank = nrank,
-                              sinit1 = sv0$d[1], uinit1 = sv0$u[, 1], vinit1 = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD_all_cpp(X, nrank = nrank,
+                                          sinit1 = sv0$d[1],
+                                          uinit1 = sv0$u[, 1],
+                                          vinit1 = sv0$v[, 1])
 
   expect_svd_equal(r_res, cpp_res, nrank = nrank, tol = 1e-7)
 })
@@ -234,8 +249,10 @@ test_that("RobRSVD_all_cpp matches R: rank-2 wide matrix", {
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
   r_res   <- .RobRSVD_all_R(X, nrank = nrank, svdinit = sv0)
-  cpp_res <- RobRSVD_all_cpp(X, nrank = nrank,
-                              sinit1 = sv0$d[1], uinit1 = sv0$u[, 1], vinit1 = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD_all_cpp(X, nrank = nrank,
+                                          sinit1 = sv0$d[1],
+                                          uinit1 = sv0$u[, 1],
+                                          vinit1 = sv0$v[, 1])
 
   expect_svd_equal(r_res, cpp_res, nrank = nrank, tol = 1e-7)
 })
@@ -247,8 +264,10 @@ test_that("RobRSVD_all_cpp matches R: rank-4 with outliers", {
   X[sample(m * n, size = 20)] <- rnorm(20, sd = 15)
   sv0    <- svd(X)
   r_res   <- .RobRSVD_all_R(X, nrank = nrank, svdinit = sv0)
-  cpp_res <- RobRSVD_all_cpp(X, nrank = nrank,
-                              sinit1 = sv0$d[1], uinit1 = sv0$u[, 1], vinit1 = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD_all_cpp(X, nrank = nrank,
+                                          sinit1 = sv0$d[1],
+                                          uinit1 = sv0$u[, 1],
+                                          vinit1 = sv0$v[, 1])
 
   expect_svd_equal(r_res, cpp_res, nrank = nrank, tol = 1e-7)
 })
@@ -264,8 +283,10 @@ test_that("RobRSVD_all_cpp matches R: rank-1 (single component)", {
   m <- 20; n <- 12; nrank <- 1
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
-  cpp_res <- RobRSVD_all_cpp(X, nrank = nrank,
-                              sinit1 = sv0$d[1], uinit1 = sv0$u[, 1], vinit1 = sv0$v[, 1])
+  cpp_res <- rajiveplus:::RobRSVD_all_cpp(X, nrank = nrank,
+                                          sinit1 = sv0$d[1],
+                                          uinit1 = sv0$u[, 1],
+                                          vinit1 = sv0$v[, 1])
 
   expect_length(cpp_res$d, 1L)
   expect_equal(dim(cpp_res$u), c(m, 1L))
@@ -310,7 +331,9 @@ test_that("RobRSVD1_cpp returns list with s, u, v of correct dimensions", {
   m <- 12; n <- 8
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
-  res    <- RobRSVD1_cpp(X, sinit = sv0$d[1], uinit = sv0$u[, 1], vinit = sv0$v[, 1])
+  res    <- rajiveplus:::RobRSVD1_cpp(X, sinit = sv0$d[1],
+                                      uinit = sv0$u[, 1],
+                                      vinit = sv0$v[, 1])
 
   expect_named(res, c("s", "u", "v"))
   expect_length(res$s, 1L)
@@ -325,8 +348,10 @@ test_that("RobRSVD_all_cpp returns list with d, u, v of correct dimensions", {
   m <- 20; n <- 10; nrank <- 3
   X      <- matrix(rnorm(m * n), m, n)
   sv0    <- svd(X)
-  res    <- RobRSVD_all_cpp(X, nrank = nrank,
-                             sinit1 = sv0$d[1], uinit1 = sv0$u[, 1], vinit1 = sv0$v[, 1])
+  res    <- rajiveplus:::RobRSVD_all_cpp(X, nrank = nrank,
+                                         sinit1 = sv0$d[1],
+                                         uinit1 = sv0$u[, 1],
+                                         vinit1 = sv0$v[, 1])
 
   expect_named(res, c("d", "u", "v"))
   expect_length(res$d, nrank)

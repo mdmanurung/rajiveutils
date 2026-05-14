@@ -14,7 +14,11 @@ Rajive(
   n_perm_samples = NA,
   num_cores = 1L,
   seed = NA_integer_,
-  identifiability_norm = c("l2", "l1")
+  identifiability_norm = c("l2", "l1"),
+  missing = c("error", "native"),
+  mask = NULL,
+  missing_control = rajive_missing_control(),
+  uncertainty = c("none", "bootstrap", "mi")
 )
 }
 \arguments{
@@ -39,8 +43,11 @@ bound samples to draw. Default \code{1000}. When both
 \code{n_rand_dir_samples} and \code{n_perm_samples} are supplied, both
 bounds are computed independently and the maximum is used as the threshold.}
 
-\item{joint_rank}{Integer or \code{NA}. User-specified joint rank. When
-\code{NA} (default) the joint rank is estimated from the data.}
+\item{joint_rank}{Integer, \code{NA}, or \code{"native_cv"} in native
+missing-data mode. When \code{NA} (default), complete-data mode estimates
+the rank from Wedin/random-direction/permutation bounds, while native
+missing-data mode selects among native candidate ranks and stores the
+diagnostics in \code{fit$missing$rank_diagnostics}.}
 
 \item{n_perm_samples}{Integer or \code{NA}. Number of permutation samples
 for the permutation-based joint-rank threshold.  Rows of each block's
@@ -70,6 +77,23 @@ Euclidean scale, matching the scale of AJIVE singular values. \code{"l1"}
 uses \code{sum(abs(X_k^T u_j))}, matching original RaJIVE's
 \code{norm(score)} behavior for a one-column matrix and therefore giving
 closer legacy parity.}
+
+\item{missing}{Character. \code{"error"} (default) preserves complete-data
+behaviour and rejects non-finite block entries. \code{"native"} enables
+native observed-entry fitting for blocks with \code{NA}s or an explicit
+observation \code{mask}.}
+
+\item{mask}{Optional list of logical matrices with the same dimensions as
+\code{blocks}; \code{TRUE} marks observed entries and \code{FALSE} marks
+missing entries excluded from the native missing-data objective.}
+
+\item{missing_control}{List created by \code{\link{rajive_missing_control}}
+controlling native missing-data preprocessing, rank diagnostics,
+uncertainty refits, and censoring/sensitivity metadata.}
+
+\item{uncertainty}{Character. \code{"none"} (default), \code{"bootstrap"},
+or \code{"mi"}. Native missing-data uncertainty stores aligned refits in
+\code{fit$missing$uncertainty}; complete-data fits ignore this argument.}
 }
 \value{
 An object of class \code{"rajive"}: a named list containing
@@ -158,6 +182,27 @@ setting rather than a universal error-rate guarantee.
 For exactly reproducible results, set \code{set.seed()} (and, for
 \code{num_cores > 1}, \code{RNGkind("L'Ecuyer-CMRG")}) before calling
 \code{Rajive()}.
+}
+
+\section{Native missing-data mode}{
+
+With \code{missing = "native"}, missing entries are excluded from centering,
+scaling, robust SVD warm starts, masked geometry diagnostics, and
+observed-entry reconstruction objectives. Numeric \code{joint_rank} values
+request fixed-rank native fits; \code{joint_rank = NA} and
+\code{joint_rank = "native_cv"} run native candidate-rank diagnostics and
+select the recorded minimum-score rank. Reconstructions returned by
+\code{\link{get_reconstructed_blocks}} are derived outputs, work even when
+\code{full = FALSE}, and carry estimability labels from
+\code{\link{get_estimability}}. Individual signal for an entirely missing
+sample-block row is labelled \code{"not_identifiable"} and is not silently
+filled from other blocks. Under partial missingness the joint/individual
+split is approximate: the individual component is fit on observed residuals
+and is not exactly orthogonal to the joint subspace; inspect the
+\code{orthogonality} element returned by
+\code{\link{get_missing_diagnostics}}(). With
+\code{uncertainty = "mi"}, refits run through the complete-data pipeline
+after imputation, whereas \code{"bootstrap"} refits keep the original mask.
 }
 
 \examples{

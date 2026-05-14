@@ -23,8 +23,8 @@ test_that("RobRSVD.all rank-2 fit improves over rank-1 on rank-2 signal", {
   out_idx <- sample.int(n * p, 30)
   X[out_idx] <- X[out_idx] + rnorm(length(out_idx), sd = 8)
 
-  fit2 <- RobRSVD.all(X, nrank = 2)
-  fit1 <- RobRSVD.all(X, nrank = 1)
+  fit2 <- rajiveplus:::RobRSVD.all(X, nrank = 2)
+  fit1 <- rajiveplus:::RobRSVD.all(X, nrank = 1)
 
   Xhat2 <- reconstruct_svd(fit2, 2)
   Xhat1 <- reconstruct_svd(fit1, 1)
@@ -41,8 +41,8 @@ test_that("RobRSVD.all with explicit svdinit equals lazy svdinit pathway", {
   set.seed(303)
   X <- matrix(rnorm(25 * 20), 25, 20)
 
-  fit_lazy <- RobRSVD.all(X, nrank = 2)
-  fit_exp  <- RobRSVD.all(X, nrank = 2, svdinit = svd(X))
+  fit_lazy <- rajiveplus:::RobRSVD.all(X, nrank = 2)
+  fit_exp  <- rajiveplus:::RobRSVD.all(X, nrank = 2, svdinit = svd(X))
 
   expect_equal(fit_lazy$d[1:2], fit_exp$d[1:2], tolerance = 1e-8)
 })

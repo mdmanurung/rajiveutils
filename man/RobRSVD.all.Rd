@@ -4,7 +4,7 @@
 \alias{RobRSVD.all}
 \title{Computes the robust SVD of a matrix}
 \usage{
-RobRSVD.all(data, nrank = min(dim(data)), svdinit = NULL)
+RobRSVD.all(data, nrank = min(dim(data)), svdinit = NULL, weights = NULL)
 }
 \arguments{
 \item{data}{Matrix. X matrix.}
@@ -13,6 +13,10 @@ RobRSVD.all(data, nrank = min(dim(data)), svdinit = NULL)
 
 \item{svdinit}{List or NULL. Optional classical SVD used for initialization.
 If NULL (default), computed lazily after input validation.}
+
+\item{weights}{Optional numeric or logical matrix with the same dimensions
+as \code{data}. Positive / \code{TRUE} entries are treated as observed;
+zero / \code{FALSE} entries are ignored by the weighted SVD path.}
 }
 \value{
 List with entries \code{d}, \code{u}, \code{v}.  When

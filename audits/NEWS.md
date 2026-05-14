@@ -34,6 +34,17 @@
   trailing entries were uninitialised.  No realistic call exercised the
   faulty path, but the fix removes the latent UB.
 
+- Native missing-data diagnostics and reconstructions now work with
+  `full = FALSE`. Internal reconstruction falls back to `u/d/v` component
+  fields when component `$full` matrices are intentionally omitted, while
+  `get_block_matrix()` keeps its existing `NA` return for omitted full
+  matrices.
+
+- Native missing-data fits now store `fit$missing$estimability` and
+  `fit$missing$reconstruction_provenance` during fit construction.
+  `get_reconstructed_blocks()` attaches matching provenance as a
+  `reconstruction_provenance` attribute on returned block lists.
+
 ## Statistical changes
 
 - `get_random_direction_bound_robustH()` now uses classical `base::svd()`
@@ -45,6 +56,29 @@
   `audits/2026-05-09-rajiveplus-vs-rajive-parity.md` for the rationale.
 
 ## New features
+
+- Added native incomplete-data RaJIVE support behind
+  `Rajive(..., missing = "native")`. The complete-data default remains
+  `missing = "error"`. Native mode accepts an observed-entry `mask`, excludes
+  missing cells from preprocessing and fitted objectives, stores
+  `rajive_incomplete` metadata, and exposes `get_missingness_info()`,
+  `get_estimability()`, `get_reconstructed_blocks()`,
+  `get_missing_diagnostics()`, `plot_missingness()`,
+  `diagnose_missing_ranks()`, and `get_missing_uncertainty()`.
+  Reconstructions are explicitly derived outputs: observed values are never
+  overwritten in the fit, and block-specific individual signal for an entirely
+  missing sample-block row is labelled `not_identifiable`. Bootstrap
+  uncertainty is a parametric residual bootstrap on observed entries;
+  sensitivity reporting records requested assumptions but is not yet a full
+  sensitivity analysis; and `diagnose_missing_ranks()` reports observed-entry
+  prediction error and support diagnostics rather than null-model surrogates.
+
+- Native missing-data fits now treat `joint_rank = NA` as automatic native
+  rank selection, equivalent to `joint_rank = "native_cv"`. When no explicit
+  `rank_candidates` are supplied, candidates default to
+  `0:min(initial_signal_ranks)`, including the no-joint-signal rank. Fixed
+  numeric `joint_rank` values remain fixed-rank fits and do not run automatic
+  diagnostics.
 
 - Added bootstrap inference helpers for the v0.2.0 roadmap:
   `rajive_ci()` computes percentile/basic/BCa intervals for joint loadings,
@@ -150,6 +184,12 @@
   all ~38 exported functions with simulated examples, plots, and
   interpretation notes.
 
+- Added `vignettes/native_missing_union.Rmd`: a portable synthetic
+  BMV-like example showing union-sample alignment across partially
+  overlapping blocks, native missing-data fitting with `full = FALSE`,
+  missingness diagnostics, estimability labels, and reconstructed block
+  provenance.
+
 - Added `vignettes/microbiome_application.Rmd`: end-to-end RaJIVE workflow
   on a multi-kingdom gut microbiome dataset (Haak et al. 2021; bacteria,
   fungi, viruses). Demonstrates rank selection, variance decomposition,
@@ -161,6 +201,12 @@
 - The heavy benchmarking artifact moved from `vignettes/benchmarking_heavy.Rmd`
   to `inst/benchmarks/benchmarking_heavy.Rmd`.  It remains SLURM-only and
   writes/reads caches explicitly under repo `vignettes/data`.
+
+- Added local artifact `inst/analyses/bmv_native_missing_union.Rmd` plus
+  `logs/slurm_render_bmv_native_missing.sh` to render the BMV union-sample
+  native missing-data analysis outside package checks. The artifact restores
+  `NA` support from the BMV preprocessing cache and keeps full BMV fitting
+  behind `RUN_FULL_BMV_NATIVE=1`.
 
 - Added audit regression tests for variance fortification, association method
   validation, stability method validation, zero-rank robust SVD, and

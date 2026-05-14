@@ -1,0 +1,179 @@
+---
+title: "BMV Native Missing-Data Union Analysis"
+output: rmarkdown::html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This local analysis artifact exercises native missing-data RaJIVE on the BMV
+preprocessing cache. It is intentionally kept outside package vignettes because
+it depends on local HPC data and scratch cache paths.
+
+```{r setup}
+repo_root <- Sys.getenv("RAJIVEPLUS_REPO_ROOT", unset = getwd())
+repo_root <- normalizePath(repo_root, winslash = "/", mustWork = TRUE)
+
+source(file.path(repo_root, "scratch", "bmv_workflow", "config.R"), chdir = TRUE)
+config <- define_bmv_publication_config(repo_root = repo_root)
+source_bmv_workflow_helpers(config)
+
+library(rajiveplus)
+```
+
+## Load union-sample preprocessing
+
+```{r load-preprocess}
+preprocess_path <- file.path(config$paths$objects, "preprocess_objects.rds")
+if (!file.exists(preprocess_path)) {
+  stop("BMV preprocess cache is missing: ", preprocess_path,
+       "\nRun the BMV preprocess stage before rendering this artifact.",
+       call. = FALSE)
+}
+
+preprocess <- readRDS(preprocess_path)
+global_union_samples <- length(preprocess$analysis_samples)
+```
+
+The BMV preprocessing cache contains finite `scaled_blocks` for the older
+complete-data fit path, plus `aligned_blocks` that preserve missing assay rows as
+`NA`. For native missing-data fitting, use the scaled values but restore the
+missingness pattern from `aligned_blocks`.
+
+```{r restore-native-missing}
+restore_native_missing_blocks <- function(preprocess) {
+  block_names <- names(preprocess$scaled_blocks)
+  out <- lapply(block_names, function(nm) {
+    scaled <- preprocess$scaled_blocks[[nm]]
+    aligned <- preprocess$aligned_blocks[[nm]]
+    missing_features <- setdiff(colnames(scaled), colnames(aligned))
+    if (length(missing_features) > 0L) {
+      stop("Scaled block features are absent from aligned block for ", nm,
+           ": ", paste(missing_features, collapse = ", "), call. = FALSE)
+    }
+    template <- aligned[rownames(scaled), colnames(scaled), drop = FALSE]
+    native <- scaled
+    native[!is.finite(template)] <- NA_real_
+    native
+  })
+  names(out) <- block_names
+  out
+}
+
+native_blocks_all <- restore_native_missing_blocks(preprocess)
+```
+
+## Select the render scope
+
+By default, this artifact fits a small subset so it can be used as a fast smoke
+test. Set `RUN_FULL_BMV_NATIVE=1` in the SLURM environment to fit all blocks and
+features.
+
+```{r subset}
+run_full <- identical(Sys.getenv("RUN_FULL_BMV_NATIVE"), "1")
+
+native_blocks <- native_blocks_all
+if (!run_full) {
+  native_blocks <- native_blocks[seq_len(min(3L, length(native_blocks)))]
+  native_blocks <- lapply(native_blocks, function(x) {
+    x[, seq_len(min(12L, ncol(x))), drop = FALSE]
+  })
+}
+
+observed_in_any_selected_block <- Reduce(`|`, lapply(native_blocks, function(x) {
+  rowSums(is.finite(x)) > 0L
+}))
+fit_blocks <- lapply(native_blocks, function(x) {
+  x[observed_in_any_selected_block, , drop = FALSE]
+})
+
+feature_supported <- lapply(fit_blocks, function(x) colSums(is.finite(x)) > 0L)
+fit_blocks <- Map(function(x, keep) x[, keep, drop = FALSE],
+                  fit_blocks, feature_supported)
+mask <- lapply(fit_blocks, is.finite)
+
+complete_case <- Reduce(`&`, lapply(mask, function(m) rowSums(m) == ncol(m)))
+block_support <- data.frame(
+  block = names(fit_blocks),
+  n_samples = vapply(fit_blocks, nrow, integer(1L)),
+  n_features = vapply(fit_blocks, ncol, integer(1L)),
+  whole_missing_sample_rows = vapply(mask, function(m) sum(rowSums(m) == 0L),
+                                     integer(1L)),
+  observed_fraction = vapply(mask, mean, numeric(1L)),
+  stringsAsFactors = FALSE
+)
+
+sample_accounting <- data.frame(
+  global_union_samples = global_union_samples,
+  selected_fit_samples = nrow(fit_blocks[[1L]]),
+  complete_case_samples = sum(complete_case),
+  run_full_bmv_native = run_full,
+  stringsAsFactors = FALSE
+)
+
+knitr::kable(sample_accounting)
+knitr::kable(block_support)
+```
+
+## Fit native missing-data RaJIVE
+
+```{r fit}
+initial_signal_ranks <- vapply(fit_blocks, function(x) {
+  as.integer(min(if (run_full) 6L else 2L, nrow(x), ncol(x)))
+}, integer(1L))
+
+candidate_max <- min(initial_signal_ranks, if (run_full) 4L else 2L)
+rank_candidates <- seq.int(0L, candidate_max)
+
+fit_native <- Rajive(
+  fit_blocks,
+  initial_signal_ranks = initial_signal_ranks,
+  missing = "native",
+  mask = mask,
+  joint_rank = NA,
+  full = FALSE,
+  missing_control = rajive_missing_control(
+    center = FALSE,
+    scale = FALSE,
+    normalize = FALSE,
+    rank_candidates = rank_candidates
+  ),
+  seed = 20260514L
+)
+
+rank_summary <- data.frame(
+  selected_joint_rank = get_joint_rank(fit_native),
+  candidate_ranks = paste(fit_native$missing$rank_diagnostics$joint_rank,
+                          collapse = ", "),
+  stringsAsFactors = FALSE
+)
+knitr::kable(rank_summary)
+```
+
+## Diagnostics and provenance
+
+```{r diagnostics}
+diag <- get_missing_diagnostics(fit_native)
+knitr::kable(diag$variance_explained)
+knitr::kable(utils::head(fit_native$missing$rank_diagnostics, 10L))
+```
+
+```{r provenance}
+recon <- get_reconstructed_blocks(fit_native, type = "joint_individual",
+                                  observed = "observed")
+provenance <- attr(recon, "reconstruction_provenance")
+missing_provenance <- provenance[!provenance$observed, , drop = FALSE]
+
+knitr::kable(utils::head(missing_provenance, 20L))
+```
+
+```{r reconstruction-dimensions}
+reconstruction_dimensions <- data.frame(
+  block = names(recon),
+  n_samples = vapply(recon, nrow, integer(1L)),
+  n_features = vapply(recon, ncol, integer(1L)),
+  stringsAsFactors = FALSE
+)
+knitr::kable(reconstruction_dimensions)
+```

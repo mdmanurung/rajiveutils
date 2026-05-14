@@ -4,18 +4,20 @@
 #'
 #' @param X Matrix. X matrix.
 #' @param rank Integer. Rank of SVD decomposition
+#' @param weights Optional observed-entry weight/mask matrix forwarded to
+#'   \code{\link{RobRSVD.all}}.
 #'
 #' @return List. The SVD of X.
 
 
 
-get_svd_robustH <- function(X, rank=NULL){
+get_svd_robustH <- function(X, rank=NULL, weights = NULL){
 
   if(is.null(rank)){
-    decomposition <- RobRSVD.all(X)
+    decomposition <- RobRSVD.all(X, weights = weights)
     decomposition
   } else{
-    decomposition <- RobRSVD.all(X, nrank = rank)
+    decomposition <- RobRSVD.all(X, nrank = rank, weights = weights)
     decomposition
   }
 

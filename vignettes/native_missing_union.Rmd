@@ -1,0 +1,150 @@
+---
+title: "Native Missing-Data Analysis on Union Samples"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Native Missing-Data Analysis on Union Samples}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This vignette shows the native missing-data workflow for partially overlapping
+multi-block studies. The important step is to align each block to the union of
+sample IDs and keep absent block/sample rows as missing values, rather than
+dropping samples that are not observed in every block.
+
+```{r setup}
+library(rajiveplus)
+set.seed(4201)
+```
+
+## Simulate overlapping BMV-like blocks
+
+The blocks share a latent sample trend but cover different subsets of samples,
+similar to a study where not every assay was measured for every participant.
+
+```{r simulate}
+all_samples <- sprintf("sample_%02d", seq_len(30))
+latent <- as.numeric(scale(seq(-1, 1, length.out = length(all_samples)) +
+                             rnorm(length(all_samples), sd = 0.15)))
+
+make_block <- function(sample_idx, n_features, prefix, noise = 0.20) {
+  loadings <- seq(1.2, 0.4, length.out = n_features) *
+    sample(c(-1, 1), n_features, replace = TRUE)
+  x <- outer(latent[sample_idx], loadings) +
+    matrix(rnorm(length(sample_idx) * n_features, sd = noise),
+           nrow = length(sample_idx))
+  rownames(x) <- all_samples[sample_idx]
+  colnames(x) <- paste0(prefix, "_", seq_len(n_features))
+  x
+}
+
+raw_blocks <- list(
+  celltype = make_block(1:18, 6, "cell"),
+  cytokine_6h = make_block(7:24, 5, "cy6"),
+  enzyme_24h = make_block(c(1:10, 15:24), 4, "enz")
+)
+
+raw_blocks$cytokine_6h[2, 3] <- NA_real_
+raw_blocks$enzyme_24h[5, 1] <- NA_real_
+raw_blocks$enzyme_24h[6, ] <- NA_real_
+```
+
+## Align to the sample union
+
+The alignment function below mirrors the preprocessing idea used by the BMV
+workflow notebook: build the analysis samples by union, allocate one matrix per
+block on that union, and only fill entries that were actually observed.
+
+```{r align}
+align_blocks_to_union <- function(blocks) {
+  analysis_samples <- Reduce(union, lapply(blocks, rownames))
+  aligned <- lapply(blocks, function(x) {
+    out <- matrix(NA_real_, nrow = length(analysis_samples), ncol = ncol(x),
+                  dimnames = list(analysis_samples, colnames(x)))
+    idx <- match(rownames(x), analysis_samples)
+    out[idx, ] <- x
+    out
+  })
+  list(samples = analysis_samples, blocks = aligned)
+}
+
+aligned <- align_blocks_to_union(raw_blocks)
+blocks_union <- aligned$blocks
+mask <- lapply(blocks_union, is.finite)
+complete_case <- Reduce(`&`, lapply(mask, function(m) rowSums(m) == ncol(m)))
+
+sample_accounting <- data.frame(
+  union_samples = length(aligned$samples),
+  complete_case_samples = sum(complete_case),
+  samples_retained_by_union = length(aligned$samples) - sum(complete_case)
+)
+knitr::kable(sample_accounting)
+```
+
+## Fit native missing-data RaJIVE
+
+Native mode excludes missing cells from preprocessing, rank diagnostics, and the
+observed-entry objective. Here `joint_rank = NA` triggers native candidate-rank
+diagnostics and selects from the supplied candidate set.
+
+```{r fit}
+fit_union <- Rajive(
+  blocks_union,
+  initial_signal_ranks = c(2L, 2L, 2L),
+  missing = "native",
+  mask = mask,
+  joint_rank = NA,
+  full = FALSE,
+  missing_control = rajive_missing_control(
+    center = TRUE,
+    scale = TRUE,
+    normalize = TRUE,
+    rank_candidates = 0:2
+  ),
+  seed = 4202
+)
+
+data.frame(
+  selected_joint_rank = get_joint_rank(fit_union),
+  candidate_ranks = paste(fit_union$missing$rank_diagnostics$joint_rank,
+                          collapse = ", ")
+)
+```
+
+## Inspect support and reconstruction provenance
+
+The decomposition should be interpreted together with the observed support. The
+estimability table records whether a reconstructed quantity is observed,
+within-block estimable, cross-block joint estimable, weakly estimable, or not
+identifiable.
+
+```{r diagnostics}
+info <- get_missingness_info(fit_union)
+diag <- get_missing_diagnostics(fit_union)
+
+knitr::kable(info$block_summary)
+knitr::kable(diag$variance_explained)
+```
+
+```{r provenance}
+missing_labels <- get_estimability(fit_union)
+missing_labels <- missing_labels[!missing_labels$observed, ]
+knitr::kable(utils::head(missing_labels, 12))
+
+recon <- get_reconstructed_blocks(fit_union, type = "joint_individual",
+                                  observed = "observed")
+provenance <- attr(recon, "reconstruction_provenance")
+knitr::kable(utils::head(provenance[!provenance$observed, ], 12))
+```
+
+The reconstructed matrices have the union sample set as their row names. Observed
+entries can be restored exactly with `observed = "observed"`, while missing
+entries remain explicitly labelled by the provenance table.
+
+```{r reconstruction-shape}
+vapply(recon, nrow, integer(1))
+```

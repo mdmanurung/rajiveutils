@@ -783,5 +783,5 @@ test_that("K7: fortify.jackstraw_rajive returns significance data.frame", {
 })
 
 test_that("K8: autoplot errors informatively for wrong object class", {
-  expect_error(autoplot.rajive(list()), regexp = "class")
+  expect_error(rajiveplus:::autoplot.rajive(list()), regexp = "class")
 })

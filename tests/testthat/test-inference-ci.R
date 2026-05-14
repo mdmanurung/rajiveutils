@@ -89,7 +89,8 @@ test_that("jackknife refits inherit fitted identifiability_norm", {
       n_wedin_samples = NA,
       n_rand_dir_samples = NA
     ),
-    Rajive = fake_fit
+    Rajive = fake_fit,
+    .package = "rajiveplus"
   )
 
   expect_equal(seen, rep("l1", nrow(fx$blocks[[1L]])))
